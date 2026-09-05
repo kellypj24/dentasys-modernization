@@ -1,0 +1,59 @@
+# DENTASYS modernization lab
+#
+# legacy  -> SQL Server 2022 standing in for the 1997 practice server in the closet.
+#            No ARM64 image exists and Azure SQL Edge was retired 2025-09-30, so on
+#            Apple Silicon this runs amd64 under Rosetta. Enable it first:
+#              Docker Desktop -> Settings -> General -> "Use Rosetta for x86/amd64 emulation"
+#            It is slow. At our data volumes that does not matter.
+#
+# target   -> PostgreSQL 17, standing in for RDS/Aurora PostgreSQL.
+#             TZ deliberately set to UTC to reproduce the us-east-1 timezone disaster
+#             rather than hide it behind a laptop's local timezone.
+
+services:
+  legacy:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: dentasys-legacy
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Dentasys!1997"
+      MSSQL_PID: Developer
+      # The 1997 server was installed with the US default collation: case-INSENSITIVE.
+      # Half the joins in this system depend on that without knowing it.
+      MSSQL_COLLATION: SQL_Latin1_General_CP1_CI_AS
+    ports:
+      - "11433:1433"
+    volumes:
+      - legacy-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+  target:
+    image: postgres:17
+    container_name: dentasys-target
+    environment:
+      POSTGRES_USER: dentasys
+      POSTGRES_PASSWORD: dentasys
+      POSTGRES_DB: dentasys
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "15432:5432"
+    volumes:
+      - target-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dentasys -d dentasys"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  legacy-data:
+  target-data:
