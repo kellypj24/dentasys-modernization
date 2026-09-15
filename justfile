@@ -97,6 +97,38 @@ reset:
 rebuild: reset build
 
 # ---------------------------------------------------------------------------
+# target database
+# ---------------------------------------------------------------------------
+
+# Run a .sql file against the target Postgres server
+[private]
+prun FILE:
+    @docker exec -i {{TARGET}} psql -U dentasys -d dentasys -v ON_ERROR_STOP=1 -q -f - < {{FILE}}
+
+# Run an ad-hoc query against the target, e.g. just pquery "SELECT * FROM dentasys.practice"
+pquery SQL:
+    @docker exec -i {{TARGET}} psql -U dentasys -d dentasys -v ON_ERROR_STOP=1 -c "{{SQL}}"
+
+# Create the target schema (landing_, dentasys, harness) and the tz resolver
+target-schema: (prun "target/01_schema.sql") (prun "target/02_tz_resolve.sql")
+
+# Move the fleet from SQL Server into landing_, plus ground truth into harness
+export:
+    @docker exec -i {{LEGACY}} /opt/mssql-tools18/bin/sqlcmd \
+        -S localhost -U sa -P '{{SA_PASS}}' -C -b -d DENTASYS_FLEET -h -1 -W \
+        -i /dev/stdin < target/export_fleet.sql \
+      | docker exec -i {{TARGET}} psql -U dentasys -d dentasys -v ON_ERROR_STOP=1 -q
+
+# landing_ -> dentasys, resolving timezones and refusing to guess at DST edges
+transform: (prun "target/03_transform.sql")
+
+# Score the timezone inference against ground truth, and assert the safety property
+score: (prun "target/04_score.sql")
+
+# The whole modernization path: target schema, export, transform, score
+migrate: target-schema export transform score
+
+# ---------------------------------------------------------------------------
 # verification
 # ---------------------------------------------------------------------------
 
@@ -149,5 +181,5 @@ verify:
     @just query "SELECT ST_CD, COUNT(DISTINCT IANA_TZ) AS ZONES FROM FLEET_ROSTER GROUP BY ST_CD HAVING COUNT(DISTINCT IANA_TZ) > 1 ORDER BY ST_CD"
     @echo ""
 
-# The pre-push gauntlet: rebuild from source, then assert. Run this before pushing.
-check: rebuild test
+# The pre-push gauntlet: rebuild both sides from source, then assert. Run before pushing.
+check: rebuild test migrate

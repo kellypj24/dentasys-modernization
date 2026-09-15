@@ -86,9 +86,11 @@ what a cautious team is actually scanning for.
 - [x] Single-practice seed — synthetic PHI, every row tied to a landmine
 - [x] Fleet spawn — 24 practices, 5 schema versions, 9 IANA zones, DST edge dates
 - [x] Reproducible toolchain — `justfile`, fleet assertions, determinism check
+- [x] Target PostgreSQL schema — landing / target / fenced-ground-truth split
+- [x] **Timezone resolution, scored against ground truth** — the marquee bug, solved and measured
 - [ ] Remaining three stored procs
 - [ ] **Parity harness** — Testcontainers, both engines, row-level diff *(the centerpiece)*
-- [ ] Target PostgreSQL schema + the four migrations
+- [ ] The four proc migrations
 - [ ] Minimal API — Npgsql, Dapper reads / EF Core writes
 - [ ] .NET Aspire orchestration
 - [ ] AWS: CDK in C#, RDS PostgreSQL, ECS Fargate, DMS, OTel → CloudWatch
@@ -130,6 +132,12 @@ legacy/           SQL Server 1997-era schema and stored procs, defects intact
   02_seed.sql        one practice, synthetic, every row tied to a landmine
   03_seed_fleet.sql  the fleet: N single-tenant DBs that disagree with each other
   procs/
+target/           the modern side
+  01_schema.sql      landing_ / dentasys / harness, and why they are separate
+  02_tz_resolve.sql  ZIP3 -> IANA, state fallback, DST edge classification
+  03_transform.sql   landing_ -> dentasys, refusing to guess
+  04_score.sql       scored against ground truth; asserts the safety property
+  export_fleet.sql   SQL Server -> psql COPY stream
 tests/
   assert_fleet.sql   invariants the spawned fleet must satisfy
 docs/
@@ -148,6 +156,7 @@ is a migration you cannot verify.
 just up        # start both engines, block until healthy
 just build     # 1997 schema + hot-path proc + sandbox seed + 24-practice fleet
 just test      # assert the fleet matches the roster
+just migrate   # target schema, export, transform, score against ground truth
 just verify    # human-readable tour of what the fixtures demonstrate
 ```
 
@@ -162,6 +171,90 @@ just query "..."   ad-hoc SQL, e.g. just query "SELECT TOP 5 * FROM APPT" DENTAS
 just shell         interactive sqlcmd
 just nuke          stop the containers and destroy their volumes
 ```
+
+## The marquee bug, solved and measured
+
+`just migrate` runs the whole modernization path: target schema, export from
+SQL Server, transform, score.
+
+The migration has to derive each practice's IANA zone from what the product
+actually contains — `ST_CD`, `CITY`, `ZIP_CD` — and is then scored against
+`harness.fleet_roster`, which it is never allowed to read.
+
+```
+timezone inference vs ground truth
+  tz_source      practices  correct  wrong    pct
+  zip_prefix            20       20      0  100.0
+  state_default          4        2      2   50.0
+  fleet                 24       22          91.7
+
+the misses
+  000804  Ontario, OR        97914  inferred America/Los_Angeles  actual America/Boise
+  000906  Coeur d'Alene, ID  83814  inferred America/Boise        actual America/Los_Angeles
+```
+
+Both misses are split states where the ZIP3 reference had no coverage and the
+resolver fell back to `ST_CD`. That is the thesis in two rows: a valid IANA
+zone, a successful conversion, no error anywhere, and an entire office an hour
+off.
+
+### The number that actually matters
+
+Accuracy is the headline, not the point. This is the point:
+
+```
+flagged_unsafe  flagged_and_wrong  flagged_but_right  unflagged_and_wrong
+             4                  2                  2                    0
+```
+
+`unflagged_and_wrong` has to be zero, and it is asserted, not reported — the
+score step raises and exits nonzero if a practice is wrong without having been
+flagged first. The migration cannot know it got Ontario wrong. It *can* know
+that resolving a split state from `ST_CD` alone is untrustworthy, and it marks
+that at resolution time, before anyone knows the answer. Refusing to launder a
+guess into a fact is the whole job.
+
+`flagged_but_right` is 2: Fargo and Anchorage were flagged and turned out fine.
+That is the correct trade. Being conservative about scheduling data costs two
+phone calls; being confident costs an office a day of appointments.
+
+### What it refuses to do
+
+```
+nonexistent_local_times  ambiguous_local_times  invented_an_instant
+                     21                     21                    0
+```
+
+Spring-forward 02:30 has no UTC instant, so `start_utc` is NULL and a CHECK
+constraint forbids inventing one. Fall-back 01:30 happens twice; the tie-break
+is the later occurrence, documented and deterministic, and every affected row
+goes on the exception report. Both counts are 21 rather than 24 because Phoenix,
+Tucson and Honolulu don't observe DST — the *identical row* is unambiguous there:
+
+```
+ practice_id  practice_tz       booked_local      utc                 nonexistent  ambiguous
+ 000417       America/Phoenix   2026-11-01 01:30  2026-11-01 08:30    f            f
+ 001010       America/New_York  2026-11-01 01:30  2026-11-01 06:30    f            t
+```
+
+Appointment duration is NULL for all 264 rows, flagged `duration_unrecoverable`.
+`LEN_UNITS` is 10-minute units on part of the fleet and 15 on the rest, and the
+grid lives in a workstation `.INI` that will never be migrated. Writing
+`len_units * 10` would produce a column that is right for most of the fleet and
+quietly 50% short for the rest — worse than NULL, because a NULL stops someone
+and a plausible wrong number does not.
+
+### The manual queue
+
+```
+appointment_duration_not_in_database         blocker  24
+local_time_does_not_exist                    blocker  21
+tz_resolved_by_state_default_in_split_state  blocker   4
+local_time_is_ambiguous                      review   21
+```
+
+Not a defect count — the size of the human queue before cutover. Knowing it in
+advance is the difference between a migration and a surprise.
 
 ### Verification
 
