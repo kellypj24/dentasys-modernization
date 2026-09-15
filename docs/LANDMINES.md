@@ -5,6 +5,14 @@ real 1990s line-of-business software, and is **detectable by the parity harness*
 That last property is the point: the harness exists to find these before a
 practice does.
 
+**None of these survive because the system was neglected.** The engine has been
+upgraded four times, the databases are backed up and monitored, and tables added
+in the last decade use modern types throughout. Every defect below survived
+precisely *because* those upgrades were careful: an in-place engine upgrade
+carries the schema forward untouched, which is the correct and safe thing for it
+to do. Fixing a column type is an application change, and it never had a quarter
+where it was the most important application change available.
+
 Ordered by how much damage each does during a real cutover.
 
 ---
@@ -166,7 +174,19 @@ and someone will have to explain that to a dentist.
 
 ## #11 — Plaintext SSN, and the HIPAA constraint
 
-`PAT_MSTR.SSN CHAR(9)`, unencrypted, because 1997.
+`PAT_MSTR.SSN CHAR(9)`, stored in plaintext.
+
+**Transparent Data Encryption almost certainly is enabled**, and it does not help
+with this at all. TDE encrypts the data files and backups at rest, so a stolen
+disk or a mislaid backup tape is covered. It decrypts transparently for every
+authenticated session, which means the SSN is plaintext to anyone with `SELECT`
+on the table — every application login, every DBA, every support engineer
+debugging a ticket, and every developer handed a restored copy.
+
+That gap is worth being precise about, because "the database is encrypted" is the
+answer you will get when you ask, and it is true. It is answering a different
+question. Column-level protection for this is an application change, which is the
+same reason nothing else on this list got fixed either.
 
 This is the reason this repo **generates** its seed data rather than shipping a
 sample. Under HIPAA you cannot pull production PHI to a laptop to debug a

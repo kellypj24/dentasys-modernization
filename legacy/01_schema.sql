@@ -1,9 +1,24 @@
 /*==============================================================================
   DENTASYS Practice Management System
-  Schema DDL -- originally authored 1997 for SQL Server 6.5
-  Ported 2003 (SQL 2000), 2011 (SQL 2008R2), 2019 (SQL 2016), 2023 (SQL 2022).
-  Nobody has re-architected it. Column names still obey the 30-char limit of a
-  system whose data model was transcribed off a mainframe layout.
+  Schema DDL -- core tables originally authored 1997 for SQL Server 6.5.
+
+  The PLATFORM has kept moving: ported 2003 (SQL 2000), 2011 (SQL 2008R2), 2019
+  (SQL 2016), 2023 (SQL 2022). These databases run on a currently-supported
+  engine, in a maintained data center, with TDE, availability groups, tested
+  restores and a DBA who tunes indexes. This is not an abandoned system.
+
+  The DATA MODEL has not moved at all. Every table below carries decisions made
+  in 1997, because upgrading an engine never rewrites a column type -- an
+  in-place upgrade from 6.5 to 2022 will carry CHAR(8) dates and FLOAT money
+  forward without comment, five times in a row.
+
+  That is the whole point. The problems in this schema survived five platform
+  modernizations precisely BECAUSE those modernizations were competent and
+  low-risk: none of them touched the data model, and touching it was always the
+  thing nobody could justify.
+
+  Tables added after about 2015 look completely different -- see APPT_REMINDER
+  at the bottom. The schema is stratified by era, not uniformly old.
 
   DO NOT "CLEAN UP" NAMES. Field names are compiled into 400+ Crystal Reports.
                                                           -- DK, 2004
@@ -224,4 +239,40 @@ BEGIN
       JOIN inserted i ON i.PAT_ID = p.PAT_ID
      WHERE i.APPT_STAT = 'C';           -- completed
 END
+GO
+
+/*------------------------------------------------------------------------------
+  APPT_REMINDER -- added 07.01.04 (2021), for text and email reminders.
+
+  Note that this table is nothing like the ones above it. Real IDENTITY primary
+  key, DATETIMEOFFSET instead of split CHAR columns, NVARCHAR instead of CHAR,
+  BIT instead of a four-valued CHAR(1) flag, and a check constraint. Whoever
+  wrote it knew what they were doing.
+
+  They still could not fix the join to APPT, because APPT HAS NO PRIMARY KEY --
+  only a clustered index on (APPT_DT, APPT_TM) -- so there is nothing for a
+  foreign key to reference. The 2021 developer did everything right on their own
+  table and was still forced to carry an unenforceable integer reference into a
+  1997 table. That is what "we'll fix the old stuff later" looks like 24 years
+  on.
+
+  There is one accidental gift here. SCHEDULED_AT is a DATETIMEOFFSET, so for
+  any practice that has reminder rows, the stored offset is EVIDENCE of what the
+  practice's real UTC offset was at that moment -- a timezone signal that exists
+  nowhere else in the schema. It only covers practices on 07.01.04 or later, so
+  it cannot resolve the whole fleet, but it is better evidence than ST_CD.
+  See docs/LANDMINES.md #1.
+------------------------------------------------------------------------------*/
+CREATE TABLE APPT_REMINDER (
+    REMINDER_ID   BIGINT           IDENTITY(1,1) NOT NULL,
+    APPT_ID       INT              NOT NULL,   -- -> APPT.APPT_ID, and no FK is possible
+    CHANNEL       NVARCHAR(10)     NOT NULL,
+    SCHEDULED_AT  DATETIMEOFFSET(0) NOT NULL,  -- zoned. The only zoned column in DENTASYS.
+    SENT_AT       DATETIMEOFFSET(0) NULL,
+    IS_OPTED_OUT  BIT              NOT NULL CONSTRAINT DF_APPT_REMINDER_OPT DEFAULT (0),
+    CONSTRAINT PK_APPT_REMINDER PRIMARY KEY (REMINDER_ID),
+    CONSTRAINT CK_APPT_REMINDER_CHANNEL CHECK (CHANNEL IN (N'SMS', N'EMAIL'))
+);
+GO
+CREATE INDEX IX_APPT_REMINDER_APPT ON APPT_REMINDER (APPT_ID);
 GO

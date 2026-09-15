@@ -25,7 +25,9 @@ CREATE TABLE #FACTS (
     HAS_TRIGGER  INT,
     LEN_UNITS_60 INT,          -- LEN_UNITS on the 60-minute control appointment
     N_SPRINGFWD  INT,          -- rows on the spring-forward date
-    N_FALLBACK   INT           -- rows on the fall-back date
+    N_FALLBACK   INT,          -- rows on the fall-back date
+    NCOLS_REMIND INT,          -- APPT_REMINDER columns, 0 when the table is absent
+    N_REMIND     INT           -- reminder rows
 );
 
 DECLARE @p CHAR(6), @db SYSNAME, @sql NVARCHAR(MAX);
@@ -48,7 +50,9 @@ BEGIN
       (SELECT COUNT(*) FROM ' + @db + N'.sys.triggers WHERE name = ''TR_APPT_AUDIT''),
       (SELECT MAX(LEN_UNITS) FROM ' + @db + N'.dbo.APPT WHERE APPT_ID % 1000 = 1),
       (SELECT COUNT(*) FROM ' + @db + N'.dbo.APPT WHERE APPT_DT = ''20260308''),
-      (SELECT COUNT(*) FROM ' + @db + N'.dbo.APPT WHERE APPT_DT = ''20261101'');';
+      (SELECT COUNT(*) FROM ' + @db + N'.dbo.APPT WHERE APPT_DT = ''20261101''),
+      (SELECT COUNT(*) FROM ' + @db + N'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ''APPT_REMINDER''),
+      (SELECT COUNT(*) FROM ' + @db + N'.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ''APPT_REMINDER'');';
     INSERT INTO #FACTS EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
     FETCH NEXT FROM f INTO @p;
 END
@@ -56,6 +60,32 @@ CLOSE f;
 DEALLOCATE f;
 
 DECLARE @fail TABLE (SEQ INT IDENTITY, CHECK_NAME VARCHAR(90), DETAIL VARCHAR(200));
+
+/*-- The schema is stratified by era, not uniformly old ----------------------
+  APPT_REMINDER shipped in 07.01.04 with a real primary key, DATETIMEOFFSET,
+  NVARCHAR, BIT and a check constraint -- none of which the engine was ever
+  stopping anyone from using. Its presence on the newer half of the fleet is
+  the evidence that the platform kept moving while the 1997 data model did not.
+----------------------------------------------------------------------------*/
+INSERT INTO @fail (CHECK_NAME, DETAIL)
+SELECT 'APPT_REMINDER present exactly on 07.01.04 and later',
+       f.PRAC_ID + ' on ' + r.VER_NBR + ' has table=' + CAST(f.N_REMIND AS VARCHAR(5))
+  FROM #FACTS f
+  JOIN FLEET_ROSTER r ON r.PRAC_ID = f.PRAC_ID
+ WHERE f.N_REMIND <> CASE WHEN r.VER_ORD >= 70104 THEN 1 ELSE 0 END;
+
+INSERT INTO @fail (CHECK_NAME, DETAIL)
+SELECT 'APPT_REMINDER has its modern column set',
+       f.PRAC_ID + ' has ' + CAST(f.NCOLS_REMIND AS VARCHAR(5)) + ' columns, expected 6'
+  FROM #FACTS f
+  JOIN FLEET_ROSTER r ON r.PRAC_ID = f.PRAC_ID
+ WHERE r.VER_ORD >= 70104 AND f.NCOLS_REMIND <> 6;
+
+INSERT INTO @fail (CHECK_NAME, DETAIL)
+SELECT 'the newer half of the fleet carries the newer table',
+       CAST(COUNT(*) AS VARCHAR(5)) + ' practices, expected 17'
+  FROM FLEET_ROSTER WHERE VER_ORD >= 70104
+HAVING COUNT(*) <> 17;
 
 /*-- fleet shape ------------------------------------------------------------*/
 INSERT INTO @fail (CHECK_NAME, DETAIL)
@@ -195,6 +225,7 @@ BEGIN
     PRINT 'fleet assertions: PASS';
     PRINT '  24 practices | 5 schema versions | 9 IANA zones | 7 split states';
     PRINT '  8 practices carry TR_APPT_AUDIT | 3 carry customization drift | 4 on a 15-min grid';
+    PRINT '  17 carry APPT_REMINDER -- a 2021 table with modern types, in the same databases';
     PRINT '';
 END
 ELSE

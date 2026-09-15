@@ -1,8 +1,9 @@
 # DENTASYS modernization lab
 #
-# The system under simulation is from 1997. The toolchain around it is not --
-# the whole argument of this repo is that you cannot migrate what you cannot
-# reproduce, and reproducing it has to be one command.
+# The DATA MODEL under simulation is from 1997; the engine it runs on is current,
+# and so is the toolchain around it. The whole argument of this repo is that you
+# cannot migrate what you cannot reproduce, and reproducing it has to be one
+# command.
 
 # bash rather than sh: several recipes use process substitution and pipefail.
 set shell := ["bash", "-eo", "pipefail", "-c"]
@@ -70,7 +71,7 @@ shell DB="DENTASYS_FLEET":
 target-shell:
     docker exec -it {{TARGET}} psql -U dentasys -d dentasys
 
-# Create the 1997 schema and the hot-path proc
+# Create the legacy schema and the hot-path proc
 schema: (run "legacy/01_schema.sql")
     @just run legacy/procs/usp_GetScheduleForDay.sql -d DENTASYS
 

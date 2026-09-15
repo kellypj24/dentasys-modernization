@@ -199,10 +199,12 @@ COMMENT ON TABLE harness.fleet_roster IS
   Reference model
 
   Everything below is DATA. None of it carries behavior -- no triggers, no
-  procedures, no computed business rules. The 1997 system put its logic in the
-  database because that was the only place to put it; the target puts logic in
-  C# where it can be unit tested, reviewed as a diff, and debugged with a
-  debugger. The database's job here is to hold rows and enforce integrity.
+  procedures, no computed business rules. The source put its logic in the database
+  in 1997 because that was the only place to put it, and five engine upgrades
+  later it is still there -- upgrading a platform never relocates an application's
+  logic. The target puts logic in C# where it can be unit tested, reviewed as a
+  diff, and debugged with a debugger. The database's job here is to hold rows and
+  enforce integrity.
 ==============================================================================*/
 
 CREATE TABLE landing_.pat_mstr (

@@ -9,6 +9,15 @@ practices reach them through a .NET desktop application. The databases are not
 in the dental offices; the *practices* are. That distinction turns out to matter
 more than anything else here.
 
+**This is not an abandoned system.** The platform has been kept current — the
+engine has been upgraded four times since 1997 and these databases run on a
+supported version, in a maintained data center, with encryption at rest,
+availability groups, tested restores and a DBA who tunes indexes. Assuming
+otherwise is the fastest way to be wrong about a system like this, and to insult
+the people who have kept it running.
+
+What has *not* moved is the data model, and that is the whole problem.
+
 It exists to answer one question honestly:
 
 > **How do you prove the new system agrees with the old one?**
@@ -94,10 +103,52 @@ migration tools, and they're data problems.
 
 ---
 
+## What five platform upgrades did not fix
+
+An in-place engine upgrade carries the schema forward without comment. It does
+not rewrite a column type, split a `CHAR(8)` date, or add a foreign key — and it
+should not, because doing any of that silently would be far more dangerous than
+leaving it alone. So each upgrade was competent, low-risk, and completely
+orthogonal to every problem in this repo.
+
+| Modernized | Not touched by it |
+|---|---|
+| Engine 6.5 → 2000 → 2008R2 → 2016 → 2022 | `CHAR(8)` dates, `FLOAT` money, no foreign keys |
+| Encryption at rest (TDE) | plaintext SSN, readable by anyone with `SELECT` |
+| Availability groups, tested restores | a schema with no primary key on its busiest table |
+| Index tuning, better query plans | `NOLOCK` on every table in the hot-path proc |
+| Newer tables written with modern types | the 1997 tables the whole product is built on |
+
+That last row is visible in the schema itself. `APPT_REMINDER` shipped in
+07.01.04 with an `IDENTITY` primary key, `DATETIMEOFFSET`, `NVARCHAR`, `BIT` and a
+check constraint — everything the 1997 tables lack, in the same database,
+written by someone who knew exactly what they were doing. The engine was never
+what stopped anyone.
+
+It still cannot have a foreign key to `APPT`, because **`APPT` has no primary
+key** for one to reference. That is what "we'll fix the old stuff later" looks
+like 24 years on: new work done properly, still forced to carry an unenforceable
+integer into a 1997 table.
+
+So the schema is **stratified by era**, not uniformly ancient. 17 of the 24
+practices have `APPT_REMINDER`; all 24 have `APPT` exactly as it was.
+
+### One accidental gift
+
+`APPT_REMINDER.SCHEDULED_AT` is a `DATETIMEOFFSET` — the only zoned column
+anywhere in DENTASYS. For any practice with reminder rows, the stored offset is
+direct evidence of that practice's real UTC offset, which exists nowhere else in
+the schema.
+
+It covers 17 of 24 practices, so it cannot resolve the fleet on its own, but it is
+far better evidence than `ST_CD` and it is sitting there because a developer in
+2021 picked a sensible column type without thinking of it as a migration asset.
+Finding leverage like that is most of what discovery work actually is.
+
 ## The thesis: the database stops holding behavior
 
-The 1997 system put its logic in stored procedures because that was the only
-place to put it. A fat .NET client on every workstation opened its own connection
+The system put its logic in stored procedures in 1997 because that was the only
+place to put it, and it has stayed there ever since. A fat .NET client on every workstation opened its own connection
 and called procs; the database was the application server.
 
 The target inverts that. **No stored procedure logic survives the migration in
@@ -109,12 +160,24 @@ debugger.
 | Legacy proc | Destination | Why |
 |---|---|---|
 | `usp_PostLedgerAndAging` — cursor applying payment/aging rules | **C# domain service** | Business rules belong in version control, code review and unit tests. |
-| `usp_RptProductionCollection` — the report every owner stares at | **dbt model** | Good set-based SQL. Keep it SQL; add lineage and tests. Don't rewrite it into worse C#. |
+| `usp_RptProductionCollection` — the report every owner stares at | **dbt model on DuckDB** | Good set-based SQL. Keep it SQL; add lineage and tests. Don't rewrite it into worse C#, and don't run it against the database the front desk is booking into. |
 | `usp_GetScheduleForDay` — repaints every 30s per workstation | **C# read service behind an API** | The hot path is the one most worth making testable, not the one to make an exception of. |
 | `usp_NightlyRecallAndClaims` — the 2 AM SQL Agent job | **.NET Worker Service** | Needs retries, observability, scheduling. A DB job agent gives you none of that. |
 
 What is left in PostgreSQL is data and integrity: types, keys, constraints. No
 triggers, no procedures, no computed business rules.
+
+**Analytics does not live in PostgreSQL either.** The production/collection
+report is the one every practice owner stares at, and in the legacy system it
+runs against the live practice database — the same one the front desk is booking
+into. That is the same failure this repo already argues about for reads: nothing
+stands between an expensive query and the transactional store.
+
+Separating it is the structural fix, and DuckDB is the right shape for it —
+columnar, embedded, no server to run, and it reads Parquet and Postgres directly.
+The OLTP store keeps serving the appointment book; the report runs somewhere it
+cannot lock anything. Putting dbt on top of PostgreSQL would have kept the
+reporting load exactly where the problem was.
 
 ## The other half: the stack, not just the database
 
@@ -155,7 +218,7 @@ connection because it has nothing to open one with.
 - [x] **Writes** — commands, invariants, domain events, transactional outbox, drainer worker
 - [x] **Write parity** — quantifies the behavior change the hidden trigger was masking
 - [ ] Remaining three procs and their destinations
-- [ ] dbt model for the production/collection report
+- [ ] Analytics: DuckDB + dbt for the production/collection report, fed from PostgreSQL
 - [ ] AWS: CDK in C#, RDS PostgreSQL, ECS Fargate, DMS, OTel → CloudWatch
 - [ ] Cutover runbook — strangler fig, dual-write, shadow reads, rollback triggers
 
@@ -186,7 +249,7 @@ just up        # brings up both engines and waits for the healthcheck
 ## Layout
 
 ```
-legacy/              SQL Server, 1997, defects intact
+legacy/              SQL Server. 1997 data model, current engine, defects intact
   01_schema.sql
   02_seed.sql          one practice, synthetic, every row tied to a landmine
   03_seed_fleet.sql    24 databases that disagree with each other
@@ -225,13 +288,13 @@ through the API or not at all.
 
 ## Running it
 
-Everything is a `just` recipe. The system under simulation is from 1997; the
+Everything is a `just` recipe. The data model under simulation is from 1997; the
 toolchain around it is not, because a migration you cannot reproduce on demand is
 a migration you cannot verify.
 
 ```bash
 just up            # start both engines, block until healthy
-just build         # 1997 schema + procs + sandbox seed + 24-practice fleet
+just build         # legacy schema + procs + sandbox seed + 24-practice fleet
 just migrate       # target schema, export, transform, score against ground truth
 just test          # assert the fleet matches the roster
 just parity        # the harness: proc vs C#, and legacy stack vs modern stack
@@ -260,7 +323,7 @@ diffs the two. They are identical, which is the whole point:
 Individually:
 
 ```bash
-just show 000417 2026-03-08 --legacy     # direct connection, the 1997 way
+just show 000417 2026-03-08 --legacy     # direct connection, the fat-client way
 just show 000417 2026-03-08 --modern     # through the API gate
 ```
 

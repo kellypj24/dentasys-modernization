@@ -407,6 +407,27 @@ CREATE TABLE RECALL (
     RECALL_ID INT NOT NULL, PAT_ID INT NULL, RECALL_TYPE CHAR(4) NULL,
     DUE_YM CHAR(4) NULL, LAST_SENT_DT CHAR(8) NULL'
     + CASE WHEN @vord >= 70211 THEN N', DEL_FLG CHAR(1) NULL' ELSE N'' END + N');'
+    /*  APPT_REMINDER arrived in 07.01.04 (2021) and looks nothing like the tables
+        around it: real primary key, DATETIMEOFFSET, NVARCHAR, BIT, a check
+        constraint. The platform was never the constraint -- SQL Server has had
+        all of this for years. The 1997 tables kept their 1997 types because
+        changing them was the risk nobody could justify, not because the engine
+        could not do better.
+
+        It still cannot have a foreign key to APPT, because APPT has no primary
+        key for one to reference.                                             */
+    + CASE WHEN @vord >= 70104 THEN N'
+CREATE TABLE APPT_REMINDER (
+    REMINDER_ID BIGINT IDENTITY(1,1) NOT NULL,
+    APPT_ID INT NOT NULL,
+    CHANNEL NVARCHAR(10) NOT NULL,
+    SCHEDULED_AT DATETIMEOFFSET(0) NOT NULL,
+    SENT_AT DATETIMEOFFSET(0) NULL,
+    IS_OPTED_OUT BIT NOT NULL CONSTRAINT DF_APPT_REMINDER_OPT DEFAULT (0),
+    CONSTRAINT PK_APPT_REMINDER PRIMARY KEY (REMINDER_ID),
+    CONSTRAINT CK_APPT_REMINDER_CHANNEL CHECK (CHANNEL IN (N''SMS'', N''EMAIL''))
+);
+CREATE INDEX IX_APPT_REMINDER_APPT ON APPT_REMINDER (APPT_ID);' ELSE N'' END
     -- Customization drift: an index no upgrade script knows about, added for
     -- one customer's integration and never removed.
     + CASE WHEN @drift = 'Y' THEN N'
@@ -464,17 +485,29 @@ GO
 ==============================================================================*/
 
 DECLARE @seq SMALLINT, @prac CHAR(6), @vord INT, @grid SMALLINT, @drift CHAR(1),
+        @tz VARCHAR(40), @offmin INT,
         @db SYSNAME, @sql NVARCHAR(MAX), @q NVARCHAR(10) = N'.dbo.';
 
 DECLARE load CURSOR LOCAL FAST_FORWARD FOR
-    SELECT SEQ, PRAC_ID, VER_ORD, GRID_MIN, HAS_DRIFT FROM FLEET_ROSTER ORDER BY SEQ;
+    SELECT SEQ, PRAC_ID, VER_ORD, GRID_MIN, HAS_DRIFT, IANA_TZ FROM FLEET_ROSTER ORDER BY SEQ;
 
 OPEN load;
-FETCH NEXT FROM load INTO @seq, @prac, @vord, @grid, @drift;
+FETCH NEXT FROM load INTO @seq, @prac, @vord, @grid, @drift, @tz;
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
     SET @db = QUOTENAME(N'DENTASYS_' + @prac);
+
+    -- The practice's STANDARD-time offset in minutes. Derived here from the
+    -- roster because this is fixture generation; the product itself has no idea.
+    SET @offmin = CASE
+        WHEN @tz = 'Pacific/Honolulu'      THEN -600
+        WHEN @tz = 'America/Anchorage'     THEN -540
+        WHEN @tz = 'America/Los_Angeles'   THEN -480
+        WHEN @tz IN ('America/Phoenix', 'America/Boise', 'America/Denver') THEN -420
+        WHEN @tz = 'America/Chicago'       THEN -360
+        ELSE -300
+    END;
 
     /*-- SCHEMA_VER: full upgrade history up to this practice's release -------*/
     SET @sql = N'INSERT INTO ' + @db + @q + N'SCHEMA_VER (VER_NBR, APPLIED_DT, APPLIED_BY)
@@ -624,6 +657,28 @@ BEGIN
                   WHERE r.PRAC_ID = @p;';
     EXEC sp_executesql @sql, N'@p CHAR(6), @v INT', @p = @prac, @v = @vord;
 
+    /*-- APPT_REMINDER ---------------------------------------------------------
+      Only exists on 07.01.04+. SCHEDULED_AT carries a real UTC offset, computed
+      from the practice's actual zone -- which is exactly why it is useful: it is
+      the one place in DENTASYS where a practice's true offset is recorded, and
+      it got there because a 2021 developer picked a sensible column type without
+      thinking about it as a migration asset.
+    --------------------------------------------------------------------------*/
+    IF @vord >= 70104
+    BEGIN
+        SET @sql = N'INSERT INTO ' + @db + @q + N'APPT_REMINDER (APPT_ID, CHANNEL, SCHEDULED_AT, IS_OPTED_OUT)
+                     SELECT CAST(r.PRAC_ID AS INT) * 1000 + t.N,
+                            CASE WHEN t.N % 2 = 0 THEN N''SMS'' ELSE N''EMAIL'' END,
+                            TODATETIMEOFFSET(
+                                DATEADD(day, -1, CONVERT(DATETIME2(0), t.APPT_DT, 112)),
+                                @offsetMin),
+                            0
+                       FROM DENTASYS_FLEET.dbo.FLEET_ROSTER r
+                      CROSS JOIN DENTASYS_FLEET.dbo.TPL_APPT t
+                      WHERE r.PRAC_ID = @p AND t.DEL_KIND = ''LIVE'' AND t.N <= 4;';
+        EXEC sp_executesql @sql, N'@p CHAR(6), @offsetMin INT', @p = @prac, @offsetMin = @offmin;
+    END
+
     /*-- RECALL ---------------------------------------------------------------*/
     SET @sql = N'INSERT INTO ' + @db + @q + N'RECALL
                  (RECALL_ID, PAT_ID, RECALL_TYPE, DUE_YM, LAST_SENT_DT'
@@ -637,7 +692,7 @@ BEGIN
                   WHERE r.PRAC_ID = @p;';
     EXEC sp_executesql @sql, N'@p CHAR(6)', @p = @prac;
 
-    FETCH NEXT FROM load INTO @seq, @prac, @vord, @grid, @drift;
+    FETCH NEXT FROM load INTO @seq, @prac, @vord, @grid, @drift, @tz;
 END
 
 CLOSE load;
