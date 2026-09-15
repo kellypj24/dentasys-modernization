@@ -83,7 +83,8 @@ what a cautious team is actually scanning for.
 
 - [x] Legacy schema with 11 planted, harness-detectable defects — `docs/LANDMINES.md`
 - [x] `usp_GetScheduleForDay` (the hot path / PL/pgSQL case)
-- [ ] Seed generator — synthetic PHI, multiple schema versions, DST edge dates
+- [x] Single-practice seed — synthetic PHI, every row tied to a landmine
+- [x] Fleet spawn — 24 practices, 5 schema versions, 9 IANA zones, DST edge dates
 - [ ] Remaining three stored procs
 - [ ] **Parity harness** — Testcontainers, both engines, row-level diff *(the centerpiece)*
 - [ ] Target PostgreSQL schema + the four migrations
@@ -125,8 +126,44 @@ docker compose up -d
 ```
 legacy/           SQL Server 1997-era schema and stored procs, defects intact
   01_schema.sql
+  02_seed.sql        one practice, synthetic, every row tied to a landmine
+  03_seed_fleet.sql  the fleet: N single-tenant DBs that disagree with each other
   procs/
 docs/
   LANDMINES.md    the 11 planted defects, why each matters, how each is caught
 docker-compose.yml
 ```
+
+## Running it
+
+```bash
+docker compose up -d                # wait for the legacy healthcheck
+
+SQLCMD="docker exec -i dentasys-legacy /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Dentasys!1997' -C -b"
+
+$SQLCMD -i /dev/stdin < legacy/01_schema.sql
+$SQLCMD -i /dev/stdin < legacy/02_seed.sql          # -> DENTASYS
+$SQLCMD -i /dev/stdin < legacy/03_seed_fleet.sql    # -> DENTASYS_FLEET + 24 practice DBs
+```
+
+`03_seed_fleet.sql` is idempotent — it drops and respawns every
+`DENTASYS_<PRAC_ID>` database in its roster, and never touches the `DENTASYS`
+single-practice sandbox. It prints the fleet as histograms, because that is the
+shape the parity harness has to report in too.
+
+### What the fleet is for
+
+`DENTASYS_FLEET.dbo.FLEET_ROSTER` is the answer key. Its `IANA_TZ` column is
+**ground truth that does not exist anywhere in the product** — the migration has
+to infer the zone from `PRACTICE.ST_CD`, and the roster is what you score that
+inference against. Seven states in the roster (FL, IN, TN, OR, ID, TX, KY) appear
+twice, in two different zones, with the same `ST_CD`.
+
+Three kinds of divergence are modelled, because each breaks something different:
+
+| Divergence | Source | What it breaks |
+|---|---|---|
+| Schema version | vendor releases, adopted whenever | code written against the current schema meets a 2014 database |
+| Reseller drift | columns/indexes/triggers added in prod | two practices on the *same* release with physically different tables |
+| Geography | physics | `ST_CD` is not a timezone, and nothing in the DB says so |
