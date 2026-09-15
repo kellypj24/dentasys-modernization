@@ -6,12 +6,16 @@
   ten-chair practice this is the most frequently executed statement in DENTASYS
   by two orders of magnitude.
 
-  MIGRATION DESTINATION: stays in the database, as PL/pgSQL.
+  MIGRATION DESTINATION: C# read service behind the API. No PL/pgSQL port.
 
-  Not everything should leave the DB. This is a tight, latency-sensitive read
-  whose logic is genuinely relational. Hauling it into C# would add a network
-  round trip to the hottest path in the product in exchange for testability we
-  can get other ways. Port it, don't rewrite it.
+  The latency argument for keeping it in the database does not survive contact
+  with the rest of this proc. Everything below the SELECT list is business logic
+  -- the soft-delete predicate, the name concatenation, the duration arithmetic,
+  the paint order -- and none of it is relational work. Moving it to PL/pgSQL
+  would relocate untestable code to a different dialect.
+
+  The proc stays here as the parity harness's ORACLE. The application never
+  calls it; the harness runs it to check the C# against 29 years of behavior.
 
   Original author unknown. Modified 2001, 2004, 2009, 2014, 2019.
 ==============================================================================*/

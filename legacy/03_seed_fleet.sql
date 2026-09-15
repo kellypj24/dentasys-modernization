@@ -97,7 +97,8 @@ VALUES
     ( 3, '000512', 'Biscayne Bay Dental Group',     'Miami',        'FL', '33131',      'America/New_York',              'Y', '07.02.11', 70211, 10, 'N', 'N'),
     ( 4, '000513', 'Pensacola Smile Center',        'Pensacola',    'FL', '32502',      'America/Chicago',               'Y', '07.01.04', 70104, 10, 'Y', 'N'),
 -- Indiana -- same ST_CD, two zones, and the Indianapolis zone has its own
--- IANA identifier because Indiana's DST history is genuinely that strange.
+-- IANA identifier: Indiana counties switched zones repeatedly between 1949
+-- and 2006, so the generic zone names do not cover it.
     ( 5, '000604', 'Meridian Street Dentistry',     'Indianapolis', 'IN', '46204',      'America/Indiana/Indianapolis',  'Y', '07.02.11', 70211, 10, 'N', 'N'),
     ( 6, '000605', 'Lakeshore Dental Care',         'Gary',         'IN', '46402',      'America/Chicago',               'Y', '06.04.02', 60402, 10, 'Y', 'N'),
 -- Tennessee -- same ST_CD, two zones.

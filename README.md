@@ -313,7 +313,7 @@ just demo 000417 2026-03-08                # terminal 2: both stacks, side by si
 
 `just demo` renders the same day twice — once from a fat client talking straight
 to SQL Server, once from a client that goes through the API to PostgreSQL — and
-diffs the two. They are identical, which is the whole point:
+diffs the two. They are identical:
 
 ```
 ================ diff of the rendered book =======================

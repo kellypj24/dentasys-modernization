@@ -12,10 +12,9 @@
   in-place upgrade from 6.5 to 2022 will carry CHAR(8) dates and FLOAT money
   forward without comment, five times in a row.
 
-  That is the whole point. The problems in this schema survived five platform
-  modernizations precisely BECAUSE those modernizations were competent and
-  low-risk: none of them touched the data model, and touching it was always the
-  thing nobody could justify.
+  The problems in this schema survived five platform modernizations because
+  those modernizations were competent and low-risk: none of them touched the data
+  model, and touching it was never the most important change available.
 
   Tables added after about 2015 look completely different -- see APPT_REMINDER
   at the bottom. The schema is stratified by era, not uniformly old.

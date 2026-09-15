@@ -176,7 +176,7 @@ SELECT 'APPT column count matches version + drift',
                           + CASE WHEN r.HAS_DRIFT = 'Y'  THEN 1 ELSE 0 END;
 
 INSERT INTO @fail (CHECK_NAME, DETAIL)
-SELECT 'the fleet is genuinely heterogeneous',
+SELECT 'the fleet is heterogeneous',
        'PAT_MSTR column count is uniform at ' + CAST(MIN(NCOLS_PAT) AS VARCHAR(5))
   FROM #FACTS HAVING MIN(NCOLS_PAT) = MAX(NCOLS_PAT);
 
