@@ -131,7 +131,7 @@ pquery SQL:
     @docker exec -i {{TARGET}} psql -U dentasys -d dentasys -v ON_ERROR_STOP=1 -c "{{SQL}}"
 
 # Create the target schema (landing_, dentasys, harness) and the tz resolver
-target-schema: (prun "target/01_schema.sql") (prun "target/02_tz_resolve.sql")
+target-schema: (prun "target/01_schema.sql") (prun "target/02_tz_resolve.sql") (prun "target/05_write_model.sql")
 
 # Move the fleet from SQL Server into landing_, plus ground truth into harness
 export:
@@ -164,6 +164,29 @@ api:
 # Show a practice's day, e.g. just show 000417 2026-03-08 --modern
 show PRACTICE DATE *FLAGS:
     @cd dotnet && dotnet run --project src/Dentasys.App -- {{PRACTICE}} {{DATE}} {{FLAGS}}
+
+# Drain the outbox -- the worker that replaces the 2 AM SQL Agent job
+worker:
+    @cd dotnet && dotnet run --project src/Dentasys.Worker
+
+# Book an appointment through the API. Try 001010 on 2026-03-08 at 02:30.
+book PRACTICE PATIENT DATE TIME UNITS="6" OPER="OP1" PROV="DDS1":
+    @curl -s -X POST http://localhost:5179/practices/{{PRACTICE}}/appointments \
+        -H 'Content-Type: application/json' \
+        -d '{"actorId":"frontdesk1","patientId":{{PATIENT}},"operatoryCode":"{{OPER}}",\
+             "providerCode":"{{PROV}}","date":"{{DATE}}","time":"{{TIME}}","lengthUnits":{{UNITS}}}' \
+      | python3 -m json.tool
+
+# Mark an appointment completed -- the write that used to fire a hidden trigger
+complete PRACTICE APPT:
+    @curl -s -X POST http://localhost:5179/practices/{{PRACTICE}}/appointments/{{APPT}}/complete \
+        -H 'Content-Type: application/json' -d '{"actorId":"frontdesk1"}' | python3 -m json.tool
+
+# What is sitting in the outbox
+outbox:
+    @just pquery "SELECT event_type, practice_id, occurred_at, \
+        CASE WHEN published_at IS NULL THEN 'pending' ELSE 'published' END AS state, attempts \
+        FROM dentasys.outbox ORDER BY occurred_at DESC LIMIT 20"
 
 # Render the same day down both stacks, side by side, and diff them
 demo PRACTICE="000417" DATE="2026-03-08":

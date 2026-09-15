@@ -18,6 +18,7 @@ builder.Services.AddSingleton(new PostgresOptions
 });
 
 builder.Services.AddScoped<PostgresScheduleRepository>();
+builder.Services.AddScoped<PostgresAppointmentWriter>();
 builder.Services.AddScoped<PracticeConfigReader>();
 builder.Services.AddSingleton<ScheduleService>();
 builder.Services.AddProblemDetails();
@@ -89,6 +90,80 @@ app.MapGet("/practices/{practiceId}/schedule", async (
         }).ToList(),
     });
 });
+
+/*  Writes.
+
+    The legacy fat client did these with an INSERT and an UPDATE it composed
+    itself, against a schema with no foreign keys, no check constraints and no
+    unique indexes. Whatever it sent, the database took.
+
+    Here every command goes through the domain rules first and a rejection is a
+    400 with the specific violations, not a constraint error surfacing three
+    layers up as a 500.                                                        */
+
+app.MapPost("/practices/{practiceId}/appointments", async (
+    string practiceId, BookRequest body, PostgresAppointmentWriter writer, CancellationToken ct) =>
+{
+    var outcome = await writer.BookAsync(new BookAppointment
+    {
+        PracticeId = practiceId,
+        ActorId = body.ActorId,
+        PatientId = body.PatientId,
+        OperatoryCode = body.OperatoryCode,
+        ProviderCode = body.ProviderCode,
+        LocalDate = DateOnly.Parse(body.Date),
+        LocalTime = TimeOnly.Parse(body.Time),
+        LengthUnits = body.LengthUnits,
+        ProcedureCode = body.ProcedureCode,
+        Note = body.Note,
+    }, ct);
+
+    return Respond(outcome, created: true, practiceId);
+});
+
+app.MapPost("/practices/{practiceId}/appointments/{appointmentId:long}/complete", async (
+    string practiceId, long appointmentId, CompleteRequest body,
+    PostgresAppointmentWriter writer, CancellationToken ct) =>
+{
+    var outcome = await writer.CompleteAsync(new CompleteAppointment
+    {
+        PracticeId = practiceId, AppointmentId = appointmentId, ActorId = body.ActorId,
+    }, ct);
+    return Respond(outcome, created: false, practiceId);
+});
+
+app.MapDelete("/practices/{practiceId}/appointments/{appointmentId:long}", async (
+    string practiceId, long appointmentId, string actorId, string? reason,
+    PostgresAppointmentWriter writer, CancellationToken ct) =>
+{
+    var outcome = await writer.CancelAsync(new CancelAppointment
+    {
+        PracticeId = practiceId, AppointmentId = appointmentId, ActorId = actorId, Reason = reason,
+    }, ct);
+    return Respond(outcome, created: false, practiceId);
+});
+
+static IResult Respond(CommandOutcome outcome, bool created, string practiceId)
+{
+    if (!outcome.Accepted)
+        return Results.ValidationProblem(
+            outcome.Violations.GroupBy(v => v.Code)
+                   .ToDictionary(g => g.Key, g => g.Select(v => v.Message).ToArray()),
+            title: "The command was rejected by a business rule.");
+
+    var body = new CommandAcceptedDto
+    {
+        AppointmentId = outcome.AppointmentId,
+        Events = outcome.Events.Select(e => e.EventType).ToList(),
+        // Surfaced rather than swallowed: the caller is entitled to know the
+        // validation was partial, and WHY, so "we checked" does not get assumed.
+        SkippedChecks = outcome.SkippedChecks,
+    };
+
+    return created
+        ? Results.Created($"/practices/{practiceId}/appointments/{outcome.AppointmentId}", body)
+        : Results.Ok(body);
+}
 
 app.Run();
 

@@ -152,16 +152,12 @@ connection because it has nothing to open one with.
 - [x] Timezone resolution, scored against ground truth
 - [x] **The application** — C# domain rules, two data adapters, API gate, console UI
 - [x] **Parity harness** — proc vs C#, and legacy stack vs modern stack, across the fleet
-- [ ] Writes, and the event-driven path that goes with them
+- [x] **Writes** — commands, invariants, domain events, transactional outbox, drainer worker
+- [x] **Write parity** — quantifies the behavior change the hidden trigger was masking
 - [ ] Remaining three procs and their destinations
 - [ ] dbt model for the production/collection report
 - [ ] AWS: CDK in C#, RDS PostgreSQL, ECS Fargate, DMS, OTel → CloudWatch
 - [ ] Cutover runbook — strangler fig, dual-write, shadow reads, rollback triggers
-
-Everything so far is the **read** path. Events belong with writes — an
-appointment change publishing a domain event, the 2 AM job becoming a worker that
-consumes them — and building an event bus for a read-only schedule screen would
-be scaffolding with nothing to hold up.
 
 ## Setup
 
@@ -201,6 +197,7 @@ target/              the PostgreSQL side
   02_tz_resolve.sql    ZIP3 -> IANA, state fallback, DST edge classification
   03_transform.sql     landing_ -> dentasys, refusing to guess
   04_score.sql         scored against ground truth; asserts the safety property
+  05_write_model.sql   outbox, audit, and the constraints 1997 never had
   export_fleet.sql     SQL Server -> psql COPY stream
 
 dotnet/
@@ -210,8 +207,9 @@ dotnet/
   src/Dentasys.Api/             the API gate -- the only thing holding a connection
   src/Dentasys.Client/          HTTP client. References no database driver.
   src/Dentasys.App/             console UI, renders from either stack
+  src/Dentasys.Worker/          drains the outbox; replaces the 2 AM SQL Agent job
   src/Dentasys.Parity/          the classification model and the comparer
-  tests/Dentasys.Parity.Tests/  the two comparisons, across the fleet
+  tests/Dentasys.Parity.Tests/  read parity, write parity, and the booking rules
 
 tests/assert_fleet.sql    invariants the spawned fleet must satisfy
 docs/LANDMINES.md         the 11 planted defects
@@ -479,6 +477,138 @@ not a time: 44 differences where there should have been 240.
 The raw text is now carried through unparsed and compared as text. A harness that
 launders the defect it exists to find is worse than no harness, and the only
 reason this surfaced was a count that looked implausible.
+
+## Writes
+
+A read that disagrees is embarrassing. A write that disagrees is permanent.
+
+### The invariants the 1997 schema never had
+
+There are no foreign keys, no check constraints and no unique indexes anywhere in
+the legacy database. The fat client composed its own INSERT and whatever it sent,
+the database took. So every rule the new system enforces is a **behavior change**,
+and each one has to be a decision rather than a tidy-up — staff have spent 29
+years adapting to their absence.
+
+Booking into the spring-forward gap, in Brooklyn:
+
+```console
+$ just book 001010 101001 2026-03-08 02:30
+{
+    "title": "The command was rejected by a business rule.",
+    "status": 400,
+    "errors": {
+        "local_time_does_not_exist": [
+            "2026-03-08 02:30 does not exist in America/New_York -- the clocks skip it."
+        ]
+    }
+}
+```
+
+The identical command in Phoenix, which does not observe DST:
+
+```console
+$ just book 000417 41701 2026-03-08 02:30
+{
+    "appointmentId": 900000000,
+    "events": ["AppointmentBooked"],
+    "skippedChecks": ["operatory_overlap_check (appointment grid not discovered)"]
+}
+```
+
+Same request, valid or invalid depending on a column the legacy schema does not
+have. The legacy system cannot refuse either one — it has no timezone anywhere, so
+the booking goes in and the appointment simply never happens.
+
+### Checks the system cannot perform, reported rather than skipped
+
+Note `skippedChecks` in that response. A chair holds one patient at a time, which
+is about as solid as a domain invariant gets — and it is **uncheckable** without
+knowing the practice's appointment grid, because overlap needs durations and a
+duration is `LEN_UNITS` × a number that lives in a workstation `.INI` file.
+
+So the acceptance is narrower than it looks, and the response says so. It is not a
+constraint in the database either, because a constraint that can only be applied
+to a third of the rows is not a constraint. Supply the grid and the check starts
+working; until then the front desk remains the only overlap detector, exactly as
+it has been since 1997.
+
+### The hidden trigger, made visible and counted
+
+`TR_APPT_AUDIT` updates `PAT_MSTR.LAST_VISIT` as a side effect of completing an
+appointment. It was added in 2004, it is in no documentation and no upgrade
+script, and it exists on **8 of the 24 practices**.
+
+For 22 years, completing an appointment has updated the last-visit date at a third
+of the fleet and done nothing at the rest. Recall lists and "patients due" queries
+have therefore meant two different things depending on which server answered, and
+no report says which.
+
+Making it an explicit policy forces the question the trigger let everyone avoid.
+The write-parity harness answers it with a number:
+
+```
+  completing an appointment, 24 practices probed
+
+    legacy updated LAST_VISIT        8
+    modern updated last_visit       24
+    diverge                         16
+
+    practices WITH TR_APPT_AUDIT      8  -> both systems update, agree
+    practices WITHOUT it             16  -> only the modern system updates
+```
+
+Both halves are asserted, not merely reported. Where the trigger exists the port
+must match it exactly — that is what makes the policy a faithful replacement
+rather than a plausible one. Where it does not, the modern system does more, and
+16 practices are about to see their recall numbers move. That is the right
+outcome, and it is still a change somebody has to be told about before it happens
+rather than after.
+
+Both sides run inside transactions that are rolled back, so the probe exercises
+the real code path and leaves the fixtures exactly as it found them.
+
+### Events, and why there is an outbox
+
+"Save the appointment, then publish the event" is two systems, and anything
+between them can fail. Crash after the commit and the event is lost; publish first
+and fail to commit and you have announced something that did not happen. Neither
+is acceptable for a recall list that drives letters to patients.
+
+The event is written to `dentasys.outbox` in the **same transaction** as the data
+change, so they succeed or fail together, and a worker drains the table afterwards:
+
+```console
+$ just worker
+info: outbox drainer started, polling every 00:00:02
+info: AppointmentBooked practice=000417 appointment=900000000
+info: published 1 event(s)
+```
+
+`FOR UPDATE SKIP LOCKED` lets several workers drain the same table without
+coordinating and without processing a row twice — the reason a queue can live in
+a relational database rather than needing a broker on day one. The broker becomes
+a delivery detail rather than a correctness dependency, which is also why this
+repo can demonstrate the pattern honestly without pretending to run Kafka.
+
+Delivery is **at least once**, not exactly once. A crash between handling an event
+and marking it published replays it. That is not a defect to engineer away —
+exactly-once across two systems is not available at any price — so consumers must
+be idempotent, and `attempts` and `last_error` on the outbox row are what turn
+"the recall letters never went out" into something a dashboard can show. The 2 AM
+SQL Agent job this replaces had no retries, no backoff and no way to know it had
+failed except a practice noticing.
+
+### Not everything that reacts to an event should be async
+
+The `LAST_VISIT` update commits **with** the appointment change, not via the
+outbox. It is a consistency requirement inside one practice's own data — a
+completed appointment and a stale last-visit date must never both be visible. The
+outbox is for consumers outside that boundary, which can tolerate arriving a
+second later.
+
+Making everything asynchronous because events are fashionable turns an invariant
+into a race.
 
 ## Fixture verification
 

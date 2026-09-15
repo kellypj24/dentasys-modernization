@@ -6,8 +6,13 @@
   not solving the problem -- it is copying the solution.
 ==============================================================================*/
 
-TRUNCATE dentasys.appointment, dentasys.practice, dentasys.migration_exception
+-- outbox and audit go too: re-running the migration means the fleet is being
+-- rebuilt from source, and events describing appointments that no longer exist
+-- would be replayed to consumers as though they had just happened.
+TRUNCATE dentasys.appointment, dentasys.practice, dentasys.migration_exception,
+         dentasys.outbox, dentasys.appointment_audit
     RESTART IDENTITY CASCADE;
+ALTER SEQUENCE dentasys.appointment_id_seq RESTART WITH 900000000;
 
 /*------------------------------------------------------------------------------
   practice -- resolve the zone that does not exist in the source
@@ -63,6 +68,77 @@ SELECT p.practice_id, 'practice', p.practice_id,
        'blocker'
   FROM dentasys.practice p
  WHERE p.tz_source = 'unresolved';
+
+/*------------------------------------------------------------------------------
+  Load order
+
+  Reference data goes in BEFORE appointments, because dentasys.appointment now
+  carries a foreign key to dentasys.patient and the 1997 schema has no foreign
+  keys anywhere. Ordering that did not matter for 29 years starts mattering the
+  moment the target enforces integrity the source never did -- which is the
+  point of adding it, and also the first thing it breaks.
+------------------------------------------------------------------------------*/
+
+/*==============================================================================
+  Reference model
+
+  Typed conversions, and each one is a decision the parity harness will have to
+  account for:
+
+    bal_amt   FLOAT text -> numeric(12,2). Rounds. Will disagree with legacy by
+              fractions of a cent, correctly, on every patient with a balance.
+    pat_dob   CHAR(8) 'YYYYMMDD' -> date.
+    del_flg   four truth values -> boolean. Only 'Y' means deleted.
+    active_flg'Y'/'N' -> boolean, with NULL read as active, matching how the
+              legacy screens behave.
+==============================================================================*/
+
+TRUNCATE dentasys.patient, dentasys.provider, dentasys.operatory,
+         dentasys.procedure_code, dentasys.practice_config RESTART IDENTITY CASCADE;
+
+INSERT INTO dentasys.patient
+    (practice_id, patient_id, chart_number, last_name, first_name, middle_initial,
+     date_of_birth, sex_code, ssn_last4, home_phone, primary_provider,
+     balance, last_visit, is_deleted)
+SELECT lp.prac_id,
+       lp.pat_id::bigint,
+       nullif(trim(lp.chart_nbr), '')::citext,
+       nullif(trim(coalesce(lp.last_nm,  '')), ''),
+       nullif(trim(coalesce(lp.first_nm, '')), ''),
+       nullif(trim(coalesce(lp.mid_init, '')), '')::char(1),
+       to_date(nullif(trim(lp.pat_dob), ''), 'YYYYMMDD'),
+       nullif(trim(lp.sex_cd), '')::char(1),
+       nullif(trim(lp.ssn_last4), '')::char(4),
+       nullif(trim(lp.home_phone), ''),
+       nullif(trim(lp.prim_prov), '')::citext,
+       round(nullif(trim(lp.bal_amt), '')::numeric, 2),
+       to_date(nullif(trim(lp.last_visit), ''), 'YYYYMMDD'),
+       upper(trim(coalesce(lp.del_flg, ''))) = 'Y'
+  FROM landing_.pat_mstr lp
+  JOIN dentasys.practice p ON p.practice_id = lp.prac_id;
+
+INSERT INTO dentasys.provider (practice_id, provider_code, provider_name, provider_type, npi, is_active)
+SELECT l.prac_id, trim(l.prov_cd)::citext, l.prov_nm,
+       nullif(trim(coalesce(l.prov_type, '')), '')::char(1), nullif(trim(l.npi), ''),
+       upper(trim(coalesce(l.active_flg, 'Y'))) <> 'N'
+  FROM landing_.prov l JOIN dentasys.practice p ON p.practice_id = l.prac_id;
+
+INSERT INTO dentasys.operatory (practice_id, operatory_code, operatory_name, is_active)
+SELECT l.prac_id, trim(l.oper_cd)::citext, l.oper_nm,
+       upper(trim(coalesce(l.active_flg, 'Y'))) <> 'N'
+  FROM landing_.oper l JOIN dentasys.practice p ON p.practice_id = l.prac_id;
+
+INSERT INTO dentasys.procedure_code (practice_id, procedure_code, description, default_fee, is_active)
+SELECT l.prac_id, trim(l.proc_cd)::citext, l.proc_desc,
+       round(nullif(trim(l.default_fee), '')::numeric, 2),
+       upper(trim(coalesce(l.active_flg, 'Y'))) <> 'N'
+  FROM landing_.proc_code l JOIN dentasys.practice p ON p.practice_id = l.prac_id;
+
+/*  dentasys.practice_config is deliberately NOT populated. The appointment grid
+    is not in the source database and cannot be derived from it. It gets filled
+    in by whoever collects the workstation .INI files, one practice at a time,
+    and until then every appointment duration in that practice stays NULL.     */
+
 
 /*------------------------------------------------------------------------------
   appointment
@@ -149,63 +225,3 @@ SELECT p.practice_id, 'practice', p.practice_id,
   JOIN dentasys.practice p ON p.practice_id = a.practice_id
  WHERE NOT EXISTS (SELECT 1 FROM dentasys.practice_config pc WHERE pc.practice_id = p.practice_id)
  GROUP BY p.practice_id;
-
-/*==============================================================================
-  Reference model
-
-  Typed conversions, and each one is a decision the parity harness will have to
-  account for:
-
-    bal_amt   FLOAT text -> numeric(12,2). Rounds. Will disagree with legacy by
-              fractions of a cent, correctly, on every patient with a balance.
-    pat_dob   CHAR(8) 'YYYYMMDD' -> date.
-    del_flg   four truth values -> boolean. Only 'Y' means deleted.
-    active_flg'Y'/'N' -> boolean, with NULL read as active, matching how the
-              legacy screens behave.
-==============================================================================*/
-
-TRUNCATE dentasys.patient, dentasys.provider, dentasys.operatory,
-         dentasys.procedure_code, dentasys.practice_config RESTART IDENTITY CASCADE;
-
-INSERT INTO dentasys.patient
-    (practice_id, patient_id, chart_number, last_name, first_name, middle_initial,
-     date_of_birth, sex_code, ssn_last4, home_phone, primary_provider,
-     balance, last_visit, is_deleted)
-SELECT lp.prac_id,
-       lp.pat_id::bigint,
-       nullif(trim(lp.chart_nbr), '')::citext,
-       nullif(trim(coalesce(lp.last_nm,  '')), ''),
-       nullif(trim(coalesce(lp.first_nm, '')), ''),
-       nullif(trim(coalesce(lp.mid_init, '')), '')::char(1),
-       to_date(nullif(trim(lp.pat_dob), ''), 'YYYYMMDD'),
-       nullif(trim(lp.sex_cd), '')::char(1),
-       nullif(trim(lp.ssn_last4), '')::char(4),
-       nullif(trim(lp.home_phone), ''),
-       nullif(trim(lp.prim_prov), '')::citext,
-       round(nullif(trim(lp.bal_amt), '')::numeric, 2),
-       to_date(nullif(trim(lp.last_visit), ''), 'YYYYMMDD'),
-       upper(trim(coalesce(lp.del_flg, ''))) = 'Y'
-  FROM landing_.pat_mstr lp
-  JOIN dentasys.practice p ON p.practice_id = lp.prac_id;
-
-INSERT INTO dentasys.provider (practice_id, provider_code, provider_name, provider_type, npi, is_active)
-SELECT l.prac_id, trim(l.prov_cd)::citext, l.prov_nm,
-       nullif(trim(coalesce(l.prov_type, '')), '')::char(1), nullif(trim(l.npi), ''),
-       upper(trim(coalesce(l.active_flg, 'Y'))) <> 'N'
-  FROM landing_.prov l JOIN dentasys.practice p ON p.practice_id = l.prac_id;
-
-INSERT INTO dentasys.operatory (practice_id, operatory_code, operatory_name, is_active)
-SELECT l.prac_id, trim(l.oper_cd)::citext, l.oper_nm,
-       upper(trim(coalesce(l.active_flg, 'Y'))) <> 'N'
-  FROM landing_.oper l JOIN dentasys.practice p ON p.practice_id = l.prac_id;
-
-INSERT INTO dentasys.procedure_code (practice_id, procedure_code, description, default_fee, is_active)
-SELECT l.prac_id, trim(l.proc_cd)::citext, l.proc_desc,
-       round(nullif(trim(l.default_fee), '')::numeric, 2),
-       upper(trim(coalesce(l.active_flg, 'Y'))) <> 'N'
-  FROM landing_.proc_code l JOIN dentasys.practice p ON p.practice_id = l.prac_id;
-
-/*  dentasys.practice_config is deliberately NOT populated. The appointment grid
-    is not in the source database and cannot be derived from it. It gets filled
-    in by whoever collects the workstation .INI files, one practice at a time,
-    and until then every appointment duration in that practice stays NULL.     */

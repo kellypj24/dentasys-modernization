@@ -7,6 +7,7 @@
     <Project Path="src/Dentasys.Data.SqlServer/Dentasys.Data.SqlServer.csproj" />
     <Project Path="src/Dentasys.Domain/Dentasys.Domain.csproj" />
     <Project Path="src/Dentasys.Parity/Dentasys.Parity.csproj" />
+    <Project Path="src/Dentasys.Worker/Dentasys.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Dentasys.Parity.Tests/Dentasys.Parity.Tests.csproj" />
