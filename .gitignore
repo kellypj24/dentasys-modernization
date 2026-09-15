@@ -3,3 +3,6 @@ obj/
 .vs/
 *.user
 .DS_Store
+
+# Unexpanded template dirs left behind by tooling ({{etc}}, {{pkgetc}}, ...)
+{{*}}/
