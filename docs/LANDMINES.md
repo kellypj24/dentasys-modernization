@@ -14,14 +14,23 @@ Ordered by how much damage each does during a real cutover.
 `APPT.APPT_DT CHAR(8)` + `APPT.APPT_TM CHAR(4)`. Local wall-clock, no offset,
 no IANA zone, nowhere in the schema.
 
-On-prem this was correct. The server was thirty feet from the chair, so "server
-time" and "local time" were the same fact and the ambiguity never surfaced.
+This was never correct. It has only ever been *unfalsified*.
 
-In the cloud that stops being true, in four escalating ways:
+The databases live in the company's data center, not in the practice, so server
+time and practice-local time have differed for 29 years. The scheme holds because
+the .NET client sends a wall-clock reading from the workstation and nothing ever
+interprets it: every query is scoped to a single practice, and within one practice
+every reading shares the same unstated zone. The ambiguity is real and always has
+been — it simply has no way to surface while no question spans two practices.
 
-1. **Server moves.** DB is in `us-east-1`. Practice is in Phoenix. Any code path
-   that touches `GETDATE()` — "today's schedule", the nightly job's date
-   boundary, `CREATE_DTM` — is now off by up to three hours.
+Consolidation is the event that starts asking those questions, in four escalating
+ways:
+
+1. **Server moves.** The DB moves from the company DC to `us-east-1`. Practice is
+   in Phoenix. Any code path that touches `GETDATE()` — "today's schedule", the
+   nightly job's date boundary, `CREATE_DTM` — shifts. This one is a change of
+   degree: those paths were already wrong relative to the practice, and now they
+   are wrong by a different amount.
 2. **Arizona.** Phoenix doesn't observe DST. Half the year it's UTC−7, half the
    year the rest of Mountain time moves and Phoenix doesn't. A fixed offset
    per practice is *not* sufficient; you need the IANA zone.

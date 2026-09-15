@@ -17,9 +17,12 @@ GO
 
 /*------------------------------------------------------------------------------
   SCHEMA_VER
-  Every practice runs its own server and upgrades when its office manager feels
-  like it. This is the single most important table in the modernization: the
-  fleet is NOT on one schema version. It is on a distribution of them.
+  Every client practice has its own database, hosted here in the DC, and they are
+  not all on the same release. Customers schedule their own upgrade windows, and
+  an upgrade can mean revalidating a workflow or retraining a front desk, so some
+  practices sit on an old version for years. This is the single most important
+  table in the modernization: the fleet is NOT on one schema version. It is on a
+  distribution of them.
 ------------------------------------------------------------------------------*/
 CREATE TABLE SCHEMA_VER (
     VER_NBR      CHAR(8)      NOT NULL,   -- '07.02.11'
@@ -30,10 +33,15 @@ GO
 
 /*------------------------------------------------------------------------------
   PRACTICE
-  In the on-prem world there is exactly ONE row here, because the database IS
-  the practice. Multi-tenancy does not exist as a concept anywhere in DENTASYS.
-  Note there is no timezone column. There was never any reason for one: the
-  server was in the same building as the chair.
+  Exactly ONE row here, because the database IS the practice. Multi-tenancy does
+  not exist as a concept anywhere in DENTASYS -- it is one database per client,
+  all of them hosted in our DC.
+
+  Note there is no timezone column, and note that the usual excuse does not
+  apply: the server has never been in the same building as the chair. The zone
+  is absent because no query has ever needed it. Every read is scoped to this
+  one practice, and this practice is all in one zone, so the omission has never
+  cost anything.
 ------------------------------------------------------------------------------*/
 CREATE TABLE PRACTICE (
     PRAC_ID      CHAR(6)      NOT NULL,
@@ -69,8 +77,9 @@ CREATE TABLE PAT_MSTR (
     BAL_AMT      FLOAT        NULL,       -- FLOAT. For money. See docs/LANDMINES.md
     LAST_VISIT   CHAR(8)      NULL,
     DEL_FLG      CHAR(1)      NULL,       -- 'Y'/'N'/NULL/''  -- all four occur
-    -- Added by a reseller in 2004 for one practice, then shipped to everyone.
-    -- Each practice uses these for something completely different.
+    -- Added in 2004 for one customer who threatened to leave, then shipped to
+    -- everyone because branching the schema was deemed worse. Each practice uses
+    -- these for something completely different, and nothing records what.
     CUSTOM_1     VARCHAR(50)  NULL,
     CUSTOM_2     VARCHAR(50)  NULL,
     CUSTOM_3     VARCHAR(50)  NULL,
@@ -108,12 +117,17 @@ GO
   *** THIS TABLE IS THE MODERNIZATION. ***
 
   Wall-clock local time, split across two CHAR columns, with no timezone and no
-  UTC offset anywhere. In 1997 this was not a bug: the server was thirty feet
-  from the chair, so "local time" and "server time" were the same fact.
+  UTC offset anywhere.
 
-  Lift this into us-east-1 and that assumption silently becomes false for every
-  practice in the country. Then add DST, in a product that books in 15-minute
-  increments. See docs/LANDMINES.md #1.
+  This was never right; it has only ever been unfalsifiable. The DB is in our DC
+  and the chair is not, so these two clocks have always differed. What saves us
+  is that the client sends the workstation's wall-clock reading and nothing here
+  ever interprets it -- every query is scoped to one practice, and one practice
+  is one zone.
+
+  Consolidate the fleet and that stops being true on the first query that spans
+  two practices. Then add DST, in a product that books in 15-minute increments.
+  See docs/LANDMINES.md #1.
 ------------------------------------------------------------------------------*/
 CREATE TABLE APPT (
     APPT_ID      INT          NOT NULL,

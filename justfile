@@ -4,6 +4,9 @@
 # the whole argument of this repo is that you cannot migrate what you cannot
 # reproduce, and reproducing it has to be one command.
 
+# bash rather than sh: several recipes use process substitution and pipefail.
+set shell := ["bash", "-eo", "pipefail", "-c"]
+
 SA_PASS := "Dentasys!1997"
 LEGACY  := "dentasys-legacy"
 TARGET  := "dentasys-target"
@@ -77,8 +80,26 @@ seed: (run "legacy/02_seed.sql")
 # Spawn the fleet: DENTASYS_FLEET plus one database per practice
 fleet: (run "legacy/03_seed_fleet.sql")
 
+# Install the product's stored procs into every practice database. The parity
+# harness runs them as the ORACLE it checks the new C# against -- the app itself
+# never calls them.
+install-procs:
+    @ids="$(just _practice-ids)"; \
+     [ -n "$ids" ] || { echo "no practices found -- is the fleet spawned?" >&2; exit 1; }; \
+     for p in $ids; do \
+        docker exec -i {{LEGACY}} /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P '{{SA_PASS}}' -C -b -d "DENTASYS_$p" \
+            -i /dev/stdin < legacy/procs/usp_GetScheduleForDay.sql; \
+    done
+    @echo "usp_GetScheduleForDay installed fleet-wide"
+
+[private]
+_practice-ids:
+    @docker exec -i {{LEGACY}} /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '{{SA_PASS}}' \
+        -C -b -d DENTASYS_FLEET -h -1 -W -Q "SET NOCOUNT ON; SELECT RTRIM(PRAC_ID) FROM FLEET_ROSTER ORDER BY SEQ;"
+
 # Build everything from whatever state the server is currently in
-build: schema seed fleet
+build: schema seed fleet install-procs
 
 # Drop every DENTASYS database. Destructive, and only ever touches DENTASYS*.
 reset:
@@ -129,11 +150,51 @@ score: (prun "target/04_score.sql")
 migrate: target-schema export transform score
 
 # ---------------------------------------------------------------------------
+# the application
+# ---------------------------------------------------------------------------
+
+# Build the .NET solution
+dotnet-build:
+    @cd dotnet && dotnet build
+
+# Run the API gate (the only process that can reach PostgreSQL)
+api:
+    @cd dotnet && ASPNETCORE_URLS=http://localhost:5179 dotnet run --project src/Dentasys.Api
+
+# Show a practice's day, e.g. just show 000417 2026-03-08 --modern
+show PRACTICE DATE *FLAGS:
+    @cd dotnet && dotnet run --project src/Dentasys.App -- {{PRACTICE}} {{DATE}} {{FLAGS}}
+
+# Render the same day down both stacks, side by side, and diff them
+demo PRACTICE="000417" DATE="2026-03-08":
+    @echo "================ LEGACY: fat client -> SQL Server ================"
+    @just show {{PRACTICE}} {{DATE}} --legacy
+    @echo "================ MODERN: client -> API gate -> PostgreSQL ========"
+    @just show {{PRACTICE}} {{DATE}} --modern
+    @echo "================ diff of the rendered book ======================="
+    @diff <(just show {{PRACTICE}} {{DATE}} --legacy | tail -n +4) \
+          <(just show {{PRACTICE}} {{DATE}} --modern | tail -n +4) \
+      && echo "  identical" || echo "  ^ the two stacks disagree"
+
+# Record that a practice's appointment grid has been discovered (the .INI answer)
+set-grid PRACTICE GRID SOURCE="workstation .INI":
+    @just pquery "INSERT INTO dentasys.practice_config (practice_id, appointment_grid_minutes, source, collected_at) \
+        VALUES ('{{PRACTICE}}', {{GRID}}, '{{SOURCE}}', CURRENT_DATE) \
+        ON CONFLICT (practice_id) DO UPDATE SET appointment_grid_minutes = EXCLUDED.appointment_grid_minutes, \
+        source = EXCLUDED.source, collected_at = CURRENT_DATE"
+
+# ---------------------------------------------------------------------------
 # verification
 # ---------------------------------------------------------------------------
 
 # Assert the fleet matches what the roster says it should be
 test: (run "tests/assert_fleet.sql")
+
+# Parity harness: proc-vs-C# (is the logic faithful?) and legacy-vs-modern stack
+parity: dotnet-build
+    @cd dotnet && dotnet test --no-build --logger "console;verbosity=detailed" \
+        | grep -E "parity:|Expected|Blocked|Regression|Omitted|claimed by|-> |unexplained|Passed!|Failed!" || true
+    @cd dotnet && dotnet test --no-build --nologo -v q
 
 # Prove the seed is deterministic: spawn twice, compare checksums
 determinism:
@@ -182,4 +243,4 @@ verify:
     @echo ""
 
 # The pre-push gauntlet: rebuild both sides from source, then assert. Run before pushing.
-check: rebuild test migrate
+check: rebuild test migrate parity

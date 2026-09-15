@@ -9,19 +9,27 @@
   Three kinds of divergence are modelled here, because all three are real and
   each one breaks a different assumption:
 
-    1. VERSION drift (vendor).   Practices upgrade when the office manager feels
-                                 like it, so the fleet is a *distribution* of
-                                 SCHEMA_VER, not a version. Older databases are
-                                 missing columns that newer ones have.
+    1. VERSION drift (release).  Customers schedule their own upgrade windows and
+                                 some decline for years, so the fleet is a
+                                 *distribution* of SCHEMA_VER, not a version.
+                                 Older databases are genuinely missing columns
+                                 that newer ones have.
 
-    2. RESELLER drift (nobody).  Columns, indexes and triggers added directly in
-                                 production by a reseller, present in no vendor
-                                 upgrade script and no documentation.
+    2. CUSTOMIZATION drift.      Columns, indexes and a trigger added for one
+                                 customer under pressure and never generalized,
+                                 present in no upgrade script and no
+                                 documentation. Nobody currently employed knows
+                                 which practices have them.
 
     3. GEOGRAPHIC drift (physics). Two practices on the identical schema version
                                  in the identical ST_CD can sit in different
                                  IANA timezones. This is LANDMINE #1 and it is
                                  the reason parity output is a histogram.
+
+  All 24 databases live in the same data center. The fleet is a fleet of
+  databases, not of locations -- which is exactly why the timezone problem is
+  invisible: the servers agree with each other perfectly, and none of them
+  agrees with the practice.
 
   Deliberately deterministic. No RAND(), no NEWID(), no GETDATE() in the data.
   A parity harness whose fixtures move between runs cannot tell you whether the
@@ -72,7 +80,7 @@ CREATE TABLE FLEET_ROSTER (
     VER_ORD      INT          NOT NULL,  -- sortable/comparable form of VER_NBR
     GRID_MIN     SMALLINT     NOT NULL,  -- what LEN_UNITS means here. LANDMINE #6
     HAS_TRIGGER  CHAR(1)      NOT NULL,  -- TR_APPT_AUDIT present. LANDMINE #7
-    HAS_DRIFT    CHAR(1)      NOT NULL,  -- reseller columns/indexes present
+    HAS_DRIFT    CHAR(1)      NOT NULL,  -- one-off customer columns/indexes present
     CONSTRAINT PK_FLEET_ROSTER PRIMARY KEY (PRAC_ID)
 );
 GO
@@ -150,16 +158,25 @@ DROP TABLE IF EXISTS TPL_PAT;
 GO
 CREATE TABLE TPL_PAT (
     N SMALLINT, DOB CHAR(8), SEX CHAR(1), PRIM_PROV CHAR(4), PLAN_N SMALLINT,
-    BAL FLOAT, LAST_VISIT CHAR(8), DEL_KIND VARCHAR(10), NOTE VARCHAR(50)
+    BAL FLOAT, LAST_VISIT CHAR(8), DEL_KIND VARCHAR(10),
+    NO_FIRST_NM CHAR(1),          -- LANDMINE #9: makes the whole name NULL
+    NOTE VARCHAR(50)
 );
 GO
-INSERT INTO TPL_PAT (N, DOB, SEX, PRIM_PROV, PLAN_N, BAL, LAST_VISIT, DEL_KIND, NOTE) VALUES
-    (1,'19580312','F','DDS1',1,   0.00,'20260302','LIVE',   'medicare age, two plans historically'),
-    (2,'19740825','M','DDS1',2, 418.28,'20260302','LIVE',   'crown in progress'),
-    (3,'19910127','F','DDS2',1,  62.10,'20260304','LIVE',   NULL),
-    (4,'20190604','M','HYG1',2,   0.00,'20260310','LIVE',   'pediatric -- recall lands past the pivot'),
-    (5,'19660919','F','DDS2',3,1487.33,'20251104','LIVE',   'balance carries the FLOAT artifact'),
-    (6,'19830203','M','HYG1',1, 312.10,'20251106','DELETED','soft-deleted; still on the books');
+-- Patient 3 has no FIRST_NM. In the legacy proc,
+--   RTRIM(LAST_NM) + ', ' + RTRIM(FIRST_NM)
+-- collapses the ENTIRE name to NULL and the row paints as a blank block on the
+-- schedule. Staff have worked around it for years. The port has to reproduce
+-- that exactly -- PostgreSQL's || behaves the same way, but "cleaning it up" to
+-- CONCAT() during the port would silently un-blank those rows and change what
+-- the front desk sees. Without a NULL name in the fixtures that is untestable.
+INSERT INTO TPL_PAT (N, DOB, SEX, PRIM_PROV, PLAN_N, BAL, LAST_VISIT, DEL_KIND, NO_FIRST_NM, NOTE) VALUES
+    (1,'19580312','F','DDS1',1,   0.00,'20260302','LIVE',   'N','medicare age, two plans historically'),
+    (2,'19740825','M','DDS1',2, 418.28,'20260302','LIVE',   'N','crown in progress'),
+    (3,'19910127','F','DDS2',1,  62.10,'20260304','LIVE',   'Y','no first name -- name collapses to NULL'),
+    (4,'20190604','M','HYG1',2,   0.00,'20260310','LIVE',   'N','pediatric -- recall lands past the pivot'),
+    (5,'19660919','F','DDS2',3,1487.33,'20251104','LIVE',   'N','balance carries the FLOAT artifact'),
+    (6,'19830203','M','HYG1',1, 312.10,'20251106','DELETED','N','soft-deleted; still on the books');
 GO
 
 /*------------------------------------------------------------------------------
@@ -366,7 +383,7 @@ CREATE TABLE PAT_MSTR (
     BAL_AMT FLOAT NULL, LAST_VISIT CHAR(8) NULL, DEL_FLG CHAR(1) NULL,
     CUSTOM_1 VARCHAR(50) NULL, CUSTOM_2 VARCHAR(50) NULL, CUSTOM_3 VARCHAR(50) NULL'
     + CASE WHEN @vord >= 70104 THEN N', CUSTOM_4 VARCHAR(50) NULL, CUSTOM_5 VARCHAR(50) NULL' ELSE N'' END
-    + CASE WHEN @drift = 'Y'   THEN N', RESELLER_XREF VARCHAR(20) NULL' ELSE N'' END + N');
+    + CASE WHEN @drift = 'Y'   THEN N', CUST_XREF VARCHAR(20) NULL' ELSE N'' END + N');
 CREATE CLUSTERED INDEX IX_PAT_MSTR_ID ON PAT_MSTR (PAT_ID);
 
 CREATE TABLE APPT (
@@ -390,9 +407,10 @@ CREATE TABLE RECALL (
     RECALL_ID INT NOT NULL, PAT_ID INT NULL, RECALL_TYPE CHAR(4) NULL,
     DUE_YM CHAR(4) NULL, LAST_SENT_DT CHAR(8) NULL'
     + CASE WHEN @vord >= 70211 THEN N', DEL_FLG CHAR(1) NULL' ELSE N'' END + N');'
-    -- Reseller drift: an index nobody asked for and no upgrade script knows about.
+    -- Customization drift: an index no upgrade script knows about, added for
+    -- one customer's integration and never removed.
     + CASE WHEN @drift = 'Y' THEN N'
-CREATE NONCLUSTERED INDEX IX_PAT_XREF ON PAT_MSTR (RESELLER_XREF);' ELSE N'' END;
+CREATE NONCLUSTERED INDEX IX_PAT_XREF ON PAT_MSTR (CUST_XREF);' ELSE N'' END;
 
     EXEC @exec @sql;
 
@@ -431,8 +449,8 @@ GO
 INSERT INTO VER_LADDER (VER_NBR, VER_ORD, APPLIED_DT, APPLIED_BY) VALUES
     ('06.04.02', 60402, '20140317', 'VANTAGE_DENTAL_SVC'),
     ('07.00.09', 70009, '20180612', 'VANTAGE_DENTAL_SVC'),
-    ('07.01.04', 70104, '20210208', 'MERIDIAN_RESELLER'),
-    ('07.02.11', 70211, '20230419', 'MERIDIAN_RESELLER'),
+    ('07.01.04', 70104, '20210208', 'MERIDIAN_RELEASE_ENG'),
+    ('07.02.11', 70211, '20230419', 'MERIDIAN_RELEASE_ENG'),
     ('07.03.00', 70300, '20260126', 'VANTAGE_DENTAL_SVC');
 GO
 
@@ -516,10 +534,12 @@ BEGIN
                   ADDR_1, CITY, ST_CD, ZIP_CD, HOME_PHONE, PRIM_PROV, INS_PLAN_ID,
                   BAL_AMT, LAST_VISIT, DEL_FLG, CUSTOM_1, CUSTOM_2, CUSTOM_3'
              + CASE WHEN @vord >= 70104 THEN N', CUSTOM_4, CUSTOM_5' ELSE N'' END
-             + CASE WHEN @drift = 'Y'   THEN N', RESELLER_XREF'      ELSE N'' END + N')
+             + CASE WHEN @drift = 'Y'   THEN N', CUST_XREF'          ELSE N'' END + N')
                  SELECT CAST(r.PRAC_ID AS INT) * 100 + t.N,
                         ''C'' + RIGHT(''0000'' + CAST(CASE WHEN t.N = 6 AND r.SEQ % 4 = 0 THEN 1 ELSE t.N END AS VARCHAR(4)), 4),
-                        np.SURNAME, np.GIVEN, LEFT(np2.GIVEN, 1), t.DOB, t.SEX,
+                        np.SURNAME,
+                        CASE WHEN t.NO_FIRST_NM = ''Y'' THEN NULL ELSE np.GIVEN END,
+                        LEFT(np2.GIVEN, 1), t.DOB, t.SEX,
                         ''9'' + RIGHT(''00000000'' + CAST(r.SEQ * 1000 + t.N AS VARCHAR(8)), 8),
                         CAST(200 + t.N AS VARCHAR(4)) + '' '' + np2.SURNAME + '' Avenue'',
                         r.CITY, r.ST_CD, r.ZIP_CD,
@@ -658,7 +678,7 @@ HAVING COUNT(DISTINCT IANA_TZ) > 1
 
 SELECT 'structural variants' AS HISTOGRAM,
        SUM(CASE WHEN HAS_TRIGGER = 'Y' THEN 1 ELSE 0 END) AS WITH_TR_APPT_AUDIT,
-       SUM(CASE WHEN HAS_DRIFT   = 'Y' THEN 1 ELSE 0 END) AS WITH_RESELLER_DRIFT,
+       SUM(CASE WHEN HAS_DRIFT   = 'Y' THEN 1 ELSE 0 END) AS WITH_CUSTOM_DRIFT,
        SUM(CASE WHEN GRID_MIN    = 15  THEN 1 ELSE 0 END) AS ON_15_MIN_GRID,
        SUM(CASE WHEN OBSERVES_DST= 'N' THEN 1 ELSE 0 END) AS NO_DST,
        COUNT(*) AS TOTAL_PRACTICES
@@ -692,7 +712,7 @@ SELECT 'column count by version' AS HISTOGRAM, r.VER_NBR, c.TABLE_NAME,
        COUNT(*) AS PRACTICES, MIN(c.NCOLS) AS MIN_COLS, MAX(c.NCOLS) AS MAX_COLS
   FROM FLEET_ROSTER r
   JOIN #COLS c ON c.PRAC_ID = r.PRAC_ID
-  -- MIN_COLS <> MAX_COLS inside a single version is reseller drift: two
+  -- MIN_COLS <> MAX_COLS inside a single version is customization drift: two
   -- practices on the identical vendor release with physically different
   -- tables. That is the cell that breaks a fleet migration.
  WHERE c.TABLE_NAME IN ('PAT_MSTR', 'APPT', 'LEDGER', 'RECALL', 'PROC_CODE')

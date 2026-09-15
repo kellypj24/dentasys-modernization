@@ -123,7 +123,7 @@ SELECT 'the fleet actually contains both grids', 'only one distinct LEN_UNITS va
 
 /*-- version drift is structural, not NULLs in a uniform schema -------------*/
 INSERT INTO @fail (CHECK_NAME, DETAIL)
-SELECT 'PAT_MSTR column count matches version + drift',
+SELECT 'PAT_MSTR column count matches version + customization drift',
        f.PRAC_ID + ' on ' + r.VER_NBR + ' drift=' + r.HAS_DRIFT
               + ' has ' + CAST(f.NCOLS_PAT AS VARCHAR(5)) + ' cols, expected '
               + CAST(21 + CASE WHEN r.VER_ORD >= 70104 THEN 2 ELSE 0 END
@@ -194,7 +194,7 @@ BEGIN
     PRINT '';
     PRINT 'fleet assertions: PASS';
     PRINT '  24 practices | 5 schema versions | 9 IANA zones | 7 split states';
-    PRINT '  8 practices carry TR_APPT_AUDIT | 3 carry reseller drift | 4 on a 15-min grid';
+    PRINT '  8 practices carry TR_APPT_AUDIT | 3 carry customization drift | 4 on a 15-min grid';
     PRINT '';
 END
 ELSE

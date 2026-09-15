@@ -27,7 +27,7 @@ GO
   fleet looks like this, and it is the third that still has TR_APPT_AUDIT.
 ------------------------------------------------------------------------------*/
 INSERT INTO SCHEMA_VER (VER_NBR, APPLIED_DT, APPLIED_BY)
-VALUES ('07.02.11', '20230419', 'MERIDIAN_RESELLER');
+VALUES ('07.02.11', '20230419', 'MERIDIAN_RELEASE_ENG');
 GO
 
 /*------------------------------------------------------------------------------

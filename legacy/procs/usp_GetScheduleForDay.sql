@@ -27,11 +27,15 @@ BEGIN
     /*  LANDMINE #1 -- there is no timezone anywhere in this procedure, because
         there is no timezone anywhere in the schema. @APPT_DT is whatever the
         workstation's clock said, and APPT.APPT_DT is whatever some other
-        workstation's clock said when the appointment was booked. On-prem those
-        two clocks were in the same building, so this worked for 29 years.
+        workstation's clock said when the appointment was booked.
 
-        The moment this database lives in us-east-1 and the workstation is in
-        Phoenix -- which does not observe DST -- these are different facts.  */
+        Those two clocks have never been in the same building as this server --
+        the DB is in the DC and the practice is wherever it is. This works anyway
+        because both readings come from workstations in the SAME practice, and a
+        practice does not span a timezone. The comparison is apples to apples by
+        accident of scope, not by design.
+
+        Consolidate the fleet into one database and the accident stops holding. */
 
     /*  LANDMINE #4 -- NOLOCK on every table. This proc was made "fast" in 2004
         by a consultant who added NOLOCK everywhere rather than fixing the

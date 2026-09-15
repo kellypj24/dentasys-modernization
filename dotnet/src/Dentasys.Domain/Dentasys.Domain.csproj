@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- No data-access dependencies, on purpose. The rules must be testable
+       without a database anywhere near them. -->
+</Project>

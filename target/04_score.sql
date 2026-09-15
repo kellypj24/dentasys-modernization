@@ -126,9 +126,12 @@ BEGIN
       FROM dentasys.appointment
      WHERE local_time_nonexistent AND start_utc IS NOT NULL;
 
+    -- Every appointment must carry its raw unit count across. Losing it would
+    -- make the duration unrecoverable even after the grid is discovered.
     SELECT count(*) INTO n_bad_dur
-      FROM dentasys.appointment
-     WHERE duration_unrecoverable <> (duration_min IS NULL);
+      FROM dentasys.appointment a
+      JOIN landing_.appt l ON l.prac_id = a.practice_id AND l.appt_id::bigint = a.appointment_id
+     WHERE a.length_units IS DISTINCT FROM nullif(trim(l.len_units), '')::int;
 
     IF n_silent > 0 THEN
         RAISE EXCEPTION
@@ -140,11 +143,11 @@ BEGIN
     END IF;
     IF n_bad_dur > 0 THEN
         RAISE EXCEPTION
-            'SAFETY VIOLATION: % appointment(s) disagree with their own duration_unrecoverable flag', n_bad_dur;
+            'SAFETY VIOLATION: % appointment(s) lost their LEN_UNITS in transit', n_bad_dur;
     END IF;
 
     RAISE NOTICE '';
     RAISE NOTICE 'safety properties: PASS';
-    RAISE NOTICE '  no silently-wrong timezone, no invented instants, no contradictory durations';
+    RAISE NOTICE '  no silently-wrong timezone, no invented instants, no lost unit counts';
     RAISE NOTICE '';
 END $$;

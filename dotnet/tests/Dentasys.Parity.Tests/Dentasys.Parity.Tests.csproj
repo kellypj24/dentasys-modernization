@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Dentasys.Parity/Dentasys.Parity.csproj" />
+    <ProjectReference Include="../../src/Dentasys.Api/Dentasys.Api.csproj" />
+    <ProjectReference Include="../../src/Dentasys.Client/Dentasys.Client.csproj" />
+  </ItemGroup>
+</Project>

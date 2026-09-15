@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Dentasys.Api/Dentasys.Api.csproj" />
+    <Project Path="src/Dentasys.App/Dentasys.App.csproj" />
+    <Project Path="src/Dentasys.Client/Dentasys.Client.csproj" />
+    <Project Path="src/Dentasys.Data.Postgres/Dentasys.Data.Postgres.csproj" />
+    <Project Path="src/Dentasys.Data.SqlServer/Dentasys.Data.SqlServer.csproj" />
+    <Project Path="src/Dentasys.Domain/Dentasys.Domain.csproj" />
+    <Project Path="src/Dentasys.Parity/Dentasys.Parity.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Dentasys.Parity.Tests/Dentasys.Parity.Tests.csproj" />
+  </Folder>
+</Solution>

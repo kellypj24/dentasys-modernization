@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Deliberately references NO database driver. A client that cannot open a
+       connection cannot accidentally open one. -->
+  <ItemGroup>
+    <ProjectReference Include="../Dentasys.Domain/Dentasys.Domain.csproj" />
+  </ItemGroup>
+</Project>

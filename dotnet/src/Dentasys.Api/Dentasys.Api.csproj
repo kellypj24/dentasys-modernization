@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="../Dentasys.Data.Postgres/Dentasys.Data.Postgres.csproj" />
+  </ItemGroup>
+</Project>

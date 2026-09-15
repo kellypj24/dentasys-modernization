@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>dentasys</AssemblyName>
+    <RootNamespace>Dentasys.App</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Note: no reference to Dentasys.Data.Postgres. The modern path reaches
+         PostgreSQL only through the API, so the app has no way to open a
+         connection to it even if someone tried. -->
+    <ProjectReference Include="../Dentasys.Client/Dentasys.Client.csproj" />
+    <ProjectReference Include="../Dentasys.Data.SqlServer/Dentasys.Data.SqlServer.csproj" />
+  </ItemGroup>
+</Project>

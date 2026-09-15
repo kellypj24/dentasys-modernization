@@ -47,6 +47,23 @@ CREATE TABLE #APPT_RAW (
     LEN_UNITS VARCHAR(20), APPT_STAT VARCHAR(10), PROC_CD VARCHAR(20),
     DEL_FLG VARCHAR(10), NOTE_TXT VARCHAR(500));
 
+CREATE TABLE #PAT_RAW (
+    PRAC_ID VARCHAR(20), PAT_ID VARCHAR(20), CHART_NBR VARCHAR(20), LAST_NM VARCHAR(60),
+    FIRST_NM VARCHAR(40), MID_INIT VARCHAR(5), PAT_DOB VARCHAR(20), SEX_CD VARCHAR(5),
+    SSN_LAST4 VARCHAR(10), HOME_PHONE VARCHAR(20), PRIM_PROV VARCHAR(10),
+    BAL_AMT VARCHAR(50), LAST_VISIT VARCHAR(20), DEL_FLG VARCHAR(10));
+
+CREATE TABLE #PROV_RAW (
+    PRAC_ID VARCHAR(20), PROV_CD VARCHAR(10), PROV_NM VARCHAR(80),
+    PROV_TYPE VARCHAR(5), NPI VARCHAR(20), ACTIVE_FLG VARCHAR(5));
+
+CREATE TABLE #OPER_RAW (
+    PRAC_ID VARCHAR(20), OPER_CD VARCHAR(10), OPER_NM VARCHAR(40), ACTIVE_FLG VARCHAR(5));
+
+CREATE TABLE #PROC_RAW (
+    PRAC_ID VARCHAR(20), PROC_CD VARCHAR(20), PROC_DESC VARCHAR(120),
+    DEFAULT_FEE VARCHAR(50), ACTIVE_FLG VARCHAR(5));
+
 CREATE TABLE #OUT (SEQ INT IDENTITY(1,1) PRIMARY KEY, LINE VARCHAR(MAX));
 
 DECLARE @p CHAR(6), @db SYSNAME, @sql NVARCHAR(MAX);
@@ -72,6 +89,30 @@ BEGIN
                    FROM ' + @db + N'.dbo.APPT;';
     INSERT INTO #APPT_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
 
+    -- SSN is truncated HERE, on the legacy server, so the full nine digits
+    -- never leave it. CONVERT to VARCHAR(53) before landing BAL_AMT: FLOAT's
+    -- default string conversion rounds to 6 significant digits and would hide
+    -- the very artifact the harness exists to classify (LANDMINE #2).
+    SET @sql = N'SELECT RTRIM(@pp), CAST(PAT_ID AS VARCHAR(20)), RTRIM(CHART_NBR),
+                        LAST_NM, FIRST_NM, MID_INIT, RTRIM(PAT_DOB), SEX_CD,
+                        RIGHT(RTRIM(SSN), 4), RTRIM(HOME_PHONE), RTRIM(PRIM_PROV),
+                        CONVERT(VARCHAR(53), BAL_AMT, 2), RTRIM(LAST_VISIT), DEL_FLG
+                   FROM ' + @db + N'.dbo.PAT_MSTR;';
+    INSERT INTO #PAT_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
+
+    SET @sql = N'SELECT RTRIM(@pp), RTRIM(PROV_CD), PROV_NM, PROV_TYPE, RTRIM(NPI), ACTIVE_FLG
+                   FROM ' + @db + N'.dbo.PROV;';
+    INSERT INTO #PROV_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
+
+    SET @sql = N'SELECT RTRIM(@pp), RTRIM(OPER_CD), OPER_NM, ACTIVE_FLG
+                   FROM ' + @db + N'.dbo.OPER;';
+    INSERT INTO #OPER_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
+
+    SET @sql = N'SELECT RTRIM(@pp), RTRIM(PROC_CD), PROC_DESC,
+                        CONVERT(VARCHAR(53), DEFAULT_FEE, 2), ACTIVE_FLG
+                   FROM ' + @db + N'.dbo.PROC_CODE;';
+    INSERT INTO #PROC_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
+
     FETCH NEXT FROM x INTO @p;
 END
 CLOSE x;
@@ -82,7 +123,7 @@ DEALLOCATE x;
 ------------------------------------------------------------------------------*/
 INSERT INTO #OUT (LINE) VALUES ('\set ON_ERROR_STOP on');
 INSERT INTO #OUT (LINE) VALUES ('BEGIN;');
-INSERT INTO #OUT (LINE) VALUES ('TRUNCATE landing_.practice, landing_.appt, harness.fleet_roster;');
+INSERT INTO #OUT (LINE) VALUES ('TRUNCATE landing_.practice, landing_.appt, landing_.pat_mstr, landing_.prov, landing_.oper, landing_.proc_code, harness.fleet_roster;');
 
 INSERT INTO #OUT (LINE) VALUES
     ('COPY landing_.practice (prac_id, prac_nm, addr_1, city, st_cd, zip_cd, phone, schema_ver) FROM stdin;');
@@ -101,6 +142,41 @@ SELECT dbo.pgtext(PRAC_ID)   + CHAR(9) + dbo.pgtext(APPT_ID)   + CHAR(9) + dbo.p
      + dbo.pgtext(APPT_TM)   + CHAR(9) + dbo.pgtext(LEN_UNITS) + CHAR(9) + dbo.pgtext(APPT_STAT) + CHAR(9)
      + dbo.pgtext(PROC_CD)   + CHAR(9) + dbo.pgtext(DEL_FLG)   + CHAR(9) + dbo.pgtext(NOTE_TXT)
   FROM #APPT_RAW;
+INSERT INTO #OUT (LINE) VALUES ('\.');
+
+INSERT INTO #OUT (LINE) VALUES
+    ('COPY landing_.pat_mstr (prac_id, pat_id, chart_nbr, last_nm, first_nm, mid_init, pat_dob, sex_cd, ssn_last4, home_phone, prim_prov, bal_amt, last_visit, del_flg) FROM stdin;');
+INSERT INTO #OUT (LINE)
+SELECT dbo.pgtext(PRAC_ID) + CHAR(9) + dbo.pgtext(PAT_ID)    + CHAR(9) + dbo.pgtext(CHART_NBR) + CHAR(9)
+     + dbo.pgtext(LAST_NM) + CHAR(9) + dbo.pgtext(FIRST_NM)  + CHAR(9) + dbo.pgtext(MID_INIT)  + CHAR(9)
+     + dbo.pgtext(PAT_DOB) + CHAR(9) + dbo.pgtext(SEX_CD)    + CHAR(9) + dbo.pgtext(SSN_LAST4) + CHAR(9)
+     + dbo.pgtext(HOME_PHONE) + CHAR(9) + dbo.pgtext(PRIM_PROV) + CHAR(9) + dbo.pgtext(BAL_AMT) + CHAR(9)
+     + dbo.pgtext(LAST_VISIT) + CHAR(9) + dbo.pgtext(DEL_FLG)
+  FROM #PAT_RAW;
+INSERT INTO #OUT (LINE) VALUES ('\.');
+
+INSERT INTO #OUT (LINE) VALUES
+    ('COPY landing_.prov (prac_id, prov_cd, prov_nm, prov_type, npi, active_flg) FROM stdin;');
+INSERT INTO #OUT (LINE)
+SELECT dbo.pgtext(PRAC_ID) + CHAR(9) + dbo.pgtext(PROV_CD) + CHAR(9) + dbo.pgtext(PROV_NM) + CHAR(9)
+     + dbo.pgtext(PROV_TYPE) + CHAR(9) + dbo.pgtext(NPI) + CHAR(9) + dbo.pgtext(ACTIVE_FLG)
+  FROM #PROV_RAW;
+INSERT INTO #OUT (LINE) VALUES ('\.');
+
+INSERT INTO #OUT (LINE) VALUES
+    ('COPY landing_.oper (prac_id, oper_cd, oper_nm, active_flg) FROM stdin;');
+INSERT INTO #OUT (LINE)
+SELECT dbo.pgtext(PRAC_ID) + CHAR(9) + dbo.pgtext(OPER_CD) + CHAR(9)
+     + dbo.pgtext(OPER_NM) + CHAR(9) + dbo.pgtext(ACTIVE_FLG)
+  FROM #OPER_RAW;
+INSERT INTO #OUT (LINE) VALUES ('\.');
+
+INSERT INTO #OUT (LINE) VALUES
+    ('COPY landing_.proc_code (prac_id, proc_cd, proc_desc, default_fee, active_flg) FROM stdin;');
+INSERT INTO #OUT (LINE)
+SELECT dbo.pgtext(PRAC_ID) + CHAR(9) + dbo.pgtext(PROC_CD) + CHAR(9) + dbo.pgtext(PROC_DESC) + CHAR(9)
+     + dbo.pgtext(DEFAULT_FEE) + CHAR(9) + dbo.pgtext(ACTIVE_FLG)
+  FROM #PROC_RAW;
 INSERT INTO #OUT (LINE) VALUES ('\.');
 
 -- Ground truth goes to the fenced schema. The transform never reads it.
