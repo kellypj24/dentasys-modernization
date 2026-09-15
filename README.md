@@ -85,6 +85,7 @@ what a cautious team is actually scanning for.
 - [x] `usp_GetScheduleForDay` (the hot path / PL/pgSQL case)
 - [x] Single-practice seed — synthetic PHI, every row tied to a landmine
 - [x] Fleet spawn — 24 practices, 5 schema versions, 9 IANA zones, DST edge dates
+- [x] Reproducible toolchain — `justfile`, fleet assertions, determinism check
 - [ ] Remaining three stored procs
 - [ ] **Parity harness** — Testcontainers, both engines, row-level diff *(the centerpiece)*
 - [ ] Target PostgreSQL schema + the four migrations
@@ -129,28 +130,53 @@ legacy/           SQL Server 1997-era schema and stored procs, defects intact
   02_seed.sql        one practice, synthetic, every row tied to a landmine
   03_seed_fleet.sql  the fleet: N single-tenant DBs that disagree with each other
   procs/
+tests/
+  assert_fleet.sql   invariants the spawned fleet must satisfy
 docs/
   LANDMINES.md    the 11 planted defects, why each matters, how each is caught
 docker-compose.yml
+justfile
 ```
 
 ## Running it
 
+Everything is a `just` recipe. The system under simulation is from 1997; the
+toolchain around it is not, because a migration you cannot reproduce on demand
+is a migration you cannot verify.
+
 ```bash
-docker compose up -d                # wait for the legacy healthcheck
-
-SQLCMD="docker exec -i dentasys-legacy /opt/mssql-tools18/bin/sqlcmd \
-  -S localhost -U sa -P 'Dentasys!1997' -C -b"
-
-$SQLCMD -i /dev/stdin < legacy/01_schema.sql
-$SQLCMD -i /dev/stdin < legacy/02_seed.sql          # -> DENTASYS
-$SQLCMD -i /dev/stdin < legacy/03_seed_fleet.sql    # -> DENTASYS_FLEET + 24 practice DBs
+just up        # start both engines, block until healthy
+just build     # 1997 schema + hot-path proc + sandbox seed + 24-practice fleet
+just test      # assert the fleet matches the roster
+just verify    # human-readable tour of what the fixtures demonstrate
 ```
 
-`03_seed_fleet.sql` is idempotent — it drops and respawns every
-`DENTASYS_<PRAC_ID>` database in its roster, and never touches the `DENTASYS`
-single-practice sandbox. It prints the fleet as histograms, because that is the
-shape the parity harness has to report in too.
+`just check` is the gauntlet — `reset`, rebuild everything from the `.sql`
+files, then assert. That is the command to run before pushing, and the only
+claim of "it works" this repo will make.
+
+```
+just rebuild       drop every DENTASYS database and rebuild from source
+just determinism   spawn the fleet twice, compare checksums
+just query "..."   ad-hoc SQL, e.g. just query "SELECT TOP 5 * FROM APPT" DENTASYS_000417
+just shell         interactive sqlcmd
+just nuke          stop the containers and destroy their volumes
+```
+
+### Verification
+
+`tests/assert_fleet.sql` is the floor beneath the parity harness: proof that the
+fixtures are the fixtures this repo claims to produce. It checks trigger
+presence against the roster, column counts against version *and* reseller
+drift, `LEN_UNITS` against each practice's grid, the DST edge rows, and the
+version histogram — collecting every failure rather than throwing on the first,
+so a broken seed reports all its problems in one run.
+
+It is a real test, not a smoke test: drop `TR_APPT_AUDIT` from one practice and
+it fails with `000418 roster=Y actual=0` and exits nonzero.
+
+A harness built on a seed nobody checks reports your seed's bugs as your
+migration's bugs. That is the failure mode this exists to prevent.
 
 ### What the fleet is for
 
