@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The notes service as one process in the data center: the HTTP API the
+       capture agent and the review screen call, plus the job and chart workers. -->
+  <ItemGroup>
+    <ProjectReference Include="../Dentasys.Notes/Dentasys.Notes.csproj" />
+    <ProjectReference Include="../Dentasys.Notetaker.Claude/Dentasys.Notetaker.Claude.csproj" />
+  </ItemGroup>
+</Project>

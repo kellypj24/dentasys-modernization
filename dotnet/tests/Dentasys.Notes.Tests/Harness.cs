@@ -63,18 +63,28 @@ public sealed class NotesDb
 
     public NotesOptions Options { get; } = new()
     {
-        NotesConnectionString = new SqlConnectionStringBuilder(Server) { InitialCatalog = "DENTASYS_NOTES" }.ConnectionString,
+        NotesConnectionString = new SqlConnectionStringBuilder(Server) { InitialCatalog = Database }.ConnectionString,
         PracticeServerConnectionString = Server,
     };
 
+    /// <summary>
+    /// Its own database, rebuilt from the store script on every run, so the
+    /// queues start empty and nothing this suite leaves behind shows up in the
+    /// DENTASYS_NOTES a running notes service uses.
+    /// </summary>
+    private const string Database = "DENTASYS_NOTES_TEST";
+
     public NotesDb()
     {
-        using var conn = new SqlConnection(Options.NotesConnectionString);
-        conn.Execute("""
-            DELETE notes.audit; DELETE notes.chart_write; DELETE notes.job; DELETE notes.addendum;
-            DELETE notes.signature; DELETE notes.note_version; DELETE notes.note;
-            DELETE notes.capture_chunk; DELETE notes.capture;
-            """);
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "justfile"))) root = root.Parent;
+        var script = File.ReadAllText(Path.Combine(root!.FullName, "legacy", "notes", "01_notes_store.sql"))
+                         .Replace("DENTASYS_NOTES", Database);
+
+        using var conn = new SqlConnection(Server);
+        conn.Open();
+        foreach (var batch in script.Split("\nGO", StringSplitOptions.RemoveEmptyEntries))
+            if (!string.IsNullOrWhiteSpace(batch)) conn.Execute(batch);
     }
 
     public static IReadOnlyList<TranscriptLine> Transcript =>

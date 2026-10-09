@@ -1,9 +1,11 @@
 using System.Text;
-using Dentasys.Notetaker;
 
-namespace Dentasys.Notes;
+namespace Dentasys.Notetaker;
 
-/// <summary>The signed draft as chart text: what CLINICAL_NOTE.NOTE_TEXT holds and existing screens can show.</summary>
+/// <summary>
+/// A draft as plain text: what CLINICAL_NOTE.NOTE_TEXT holds, and what the review
+/// screen shows. One renderer, so the provider signs exactly the text the chart gets.
+/// </summary>
 public static class NoteRenderer
 {
     public static string Render(ClinicalNoteDraft d)

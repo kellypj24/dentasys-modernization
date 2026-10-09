@@ -195,6 +195,22 @@ notes-smoke MODEL="gemma3:4b" *ARGS:
     @! pgrep -f '[D]entasys.Notetaker.Eval|[D]entasys.Notes.Smoke' > /dev/null || { echo "another model run is in progress" >&2; exit 1; }
     @dotnet run --project dotnet/src/Dentasys.Notes.Smoke -- --model {{MODEL}} {{ARGS}}
 
+# The notes service: API on :5181 plus the job and chart workers. CLOUD/LOCAL are
+# drafter specs (claude[:model] | ollama:model | none). The default drafts with a
+# local model only, as if the cloud were unreachable.
+notes-api CLOUD="none" LOCAL="ollama:gemma3:4b":
+    @cd dotnet && ASPNETCORE_URLS=http://localhost:5181 Notes__CloudDrafter={{CLOUD}} Notes__LocalDrafter={{LOCAL}} \
+        dotnet run --project src/Dentasys.Notes.Api
+
+# Workstation side: record a synthetic visit into the encrypted spool, then upload it
+capture VISIT PRACTICE="001204" PATIENT="41701":
+    @cd dotnet && dotnet run --project src/Dentasys.CaptureAgent -- record {{VISIT}} --practice {{PRACTICE}} --patient {{PATIENT}}
+    @cd dotnet && dotnet run --project src/Dentasys.CaptureAgent -- drain
+
+# Review screen: notes queue / show / sign, e.g. just notes-review queue 001204
+notes-review *ARGS:
+    @cd dotnet && DENTASYS_NOTES_URL=http://localhost:5181/ dotnet run --project src/Dentasys.App -- notes {{ARGS}}
+
 # Notes service against DENTASYS_NOTES: lifecycle, disconnects, resync, chart outbox.
 notes-test:
     @cd dotnet && dotnet test tests/Dentasys.Notes.Tests --nologo -v q

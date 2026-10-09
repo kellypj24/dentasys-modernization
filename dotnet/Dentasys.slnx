@@ -2,10 +2,12 @@
   <Folder Name="/src/">
     <Project Path="src/Dentasys.Api/Dentasys.Api.csproj" />
     <Project Path="src/Dentasys.App/Dentasys.App.csproj" />
+    <Project Path="src/Dentasys.CaptureAgent/Dentasys.CaptureAgent.csproj" />
     <Project Path="src/Dentasys.Client/Dentasys.Client.csproj" />
     <Project Path="src/Dentasys.Data.Postgres/Dentasys.Data.Postgres.csproj" />
     <Project Path="src/Dentasys.Data.SqlServer/Dentasys.Data.SqlServer.csproj" />
     <Project Path="src/Dentasys.Domain/Dentasys.Domain.csproj" />
+    <Project Path="src/Dentasys.Notes.Api/Dentasys.Notes.Api.csproj" />
     <Project Path="src/Dentasys.Notes.Smoke/Dentasys.Notes.Smoke.csproj" />
     <Project Path="src/Dentasys.Notes/Dentasys.Notes.csproj" />
     <Project Path="src/Dentasys.Notetaker.Claude/Dentasys.Notetaker.Claude.csproj" />
@@ -15,6 +17,7 @@
     <Project Path="src/Dentasys.Worker/Dentasys.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Dentasys.Notes.Api.Tests/Dentasys.Notes.Api.Tests.csproj" />
     <Project Path="tests/Dentasys.Notes.Tests/Dentasys.Notes.Tests.csproj" />
     <Project Path="tests/Dentasys.Notetaker.Tests/Dentasys.Notetaker.Tests.csproj" />
     <Project Path="tests/Dentasys.Parity.Tests/Dentasys.Parity.Tests.csproj" />

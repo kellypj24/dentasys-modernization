@@ -106,7 +106,7 @@ public sealed class JobRunner
         var cloud = await _cloud.DraftAsync(transcript, ct);
         if (cloud.Draft is not null)
         {
-            await RecordDraftAsync(conn, job, _cloud.Source, cloud.Draft, isCloud: true, ct);
+            await RecordDraftAsync(conn, job, $"cloud:{_cloud.Source}", cloud.Draft, isCloud: true, ct);
             return;
         }
 
@@ -115,7 +115,10 @@ public sealed class JobRunner
             var local = await _local.DraftAsync(transcript, ct);
             if (local.Draft is not null)
             {
-                await RecordDraftAsync(conn, job, _local.Source, local.Draft, isCloud: false, ct);
+                // The role is recorded, not the drafter's own name: the review screen and
+                // the sign gate key on "local:", and a model named anything at all must not
+                // slip past them by being configured as the fallback.
+                await RecordDraftAsync(conn, job, $"local:{_local.Source}", local.Draft, isCloud: false, ct);
                 return;
             }
             cloud = cloud with { Error = $"{cloud.Error}; local: {local.Error}" };
