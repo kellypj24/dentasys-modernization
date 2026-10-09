@@ -6,3 +6,10 @@ obj/
 
 # Unexpanded template dirs left behind by tooling ({{etc}}, {{pkgetc}}, ...)
 {{*}}/
+
+# Terraform: state holds the generated Postgres password
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log

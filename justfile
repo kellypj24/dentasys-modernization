@@ -208,6 +208,84 @@ set-grid PRACTICE GRID SOURCE="workstation .INI":
         source = EXCLUDED.source, collected_at = CURRENT_DATE"
 
 # ---------------------------------------------------------------------------
+# azure (Terraform; see infra/README.md for the cost rules)
+# ---------------------------------------------------------------------------
+
+AZ_DIR := "infra/azure"
+
+# fmt, validate and the free-tier test suite. Mocked providers: no account, no cost.
+infra-check:
+    @cd {{AZ_DIR}} && terraform fmt -check -recursive
+    @cd {{AZ_DIR}} && terraform init -backend=false -input=false > /dev/null
+    @cd {{AZ_DIR}} && terraform validate -no-color
+    @cd {{AZ_DIR}} && terraform test -no-color
+
+# Build the API and worker images for linux/amd64, the only platform Container Apps runs
+images:
+    @cd dotnet && docker build --platform linux/amd64 --target api    -t dentasys-api:local -q .
+    @cd dotnet && docker build --platform linux/amd64 --target worker -t dentasys-worker:local -q .
+
+# Run the images against the local target: book through the API container, then
+# drain with the worker exactly as the Azure job will (--once)
+container-smoke: images
+    #!/usr/bin/env bash
+    set -euo pipefail
+    conn='Host=host.docker.internal;Port=15432;Database=dentasys;Username=dentasys;Password=dentasys'
+    docker run -d --rm --name dentasys-api-smoke -p 5179:8080 \
+        -e DENTASYS_TARGET_CONNECTION="$conn" dentasys-api:local > /dev/null
+    appt=""
+    # Remove the booking on the way out: left in place, the parity harness would
+    # (correctly) report it as a row the legacy stack does not have.
+    cleanup() {
+        docker stop dentasys-api-smoke > /dev/null
+        [ -z "$appt" ] || just smoke-cleanup "$appt"
+    }
+    trap cleanup EXIT
+    for _ in $(seq 30); do curl -fs localhost:5179/health > /dev/null && break; sleep 1; done
+    appt="$(just book 000417 41701 2026-03-10 10:00 | python3 -c 'import json,sys; print(json.load(sys.stdin)["appointmentId"])')"
+    docker run --rm -e DENTASYS_TARGET_CONNECTION="$conn" dentasys-worker:local --once
+    pending="$(docker exec {{TARGET}} psql -U dentasys -d dentasys -tAc \
+        "SELECT count(*) FROM dentasys.outbox WHERE published_at IS NULL")"
+    [ "$pending" = "0" ] || { echo "outbox still has $pending pending event(s)" >&2; exit 1; }
+    echo "container smoke: outbox drained"
+
+# Delete one appointment and everything its booking wrote (audit, outbox)
+[private]
+smoke-cleanup APPT:
+    @docker exec -i {{TARGET}} psql -U dentasys -d dentasys -v ON_ERROR_STOP=1 -q -c " \
+        DELETE FROM dentasys.outbox WHERE payload->>'AppointmentId' = '{{APPT}}'; \
+        DELETE FROM dentasys.appointment_audit WHERE appointment_id = {{APPT}}; \
+        DELETE FROM dentasys.appointment WHERE appointment_id = {{APPT}};"
+
+# Refuse to continue unless the subscription still has its spending limit.
+# Upgrading to pay-as-you-go turns it off, and with it the guarantee of zero charges.
+[private]
+azure-guard:
+    @az account show > /dev/null 2>&1 || { echo "not logged in -- run: az login" >&2; exit 1; }
+    @limit="$(az rest --method get \
+        --url "https://management.azure.com/subscriptions/$(az account show --query id -o tsv)?api-version=2022-12-01" \
+        --query subscriptionPolicies.spendingLimit -o tsv)"; \
+     [ "$limit" = "On" ] || { echo "spending limit is '$limit', not 'On' -- refusing. See infra/README.md." >&2; exit 1; }
+    @echo "spending limit: On"
+
+# Create the lab. Firewall opens to this machine's public IP only; expires_on is today + 30.
+azure-up: azure-guard infra-check
+    @cd {{AZ_DIR}} && terraform init -input=false > /dev/null
+    @cd {{AZ_DIR}} && ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)" terraform apply \
+        -var "operator_ip=$(curl -fsS https://api.ipify.org)" \
+        -var "expires_on=$(python3 -c 'import datetime as d; print(d.date.today() + d.timedelta(days=30))')"
+
+# Destroy the lab, then list anything tagged for this project that survived
+azure-down:
+    @cd {{AZ_DIR}} && ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)" terraform destroy \
+        -var "operator_ip=0.0.0.0" -var "expires_on=1970-01-01"
+    @just azure-leftovers
+
+# Every resource group tagged for this project. Should be empty when you are done.
+azure-leftovers:
+    @az group list --query "[?tags.project=='dentasys-modernization'].{name:name, expires_on:tags.expires_on}" -o table
+
+# ---------------------------------------------------------------------------
 # verification
 # ---------------------------------------------------------------------------
 
@@ -266,5 +344,5 @@ verify:
     @just query "SELECT ST_CD, COUNT(DISTINCT IANA_TZ) AS ZONES FROM FLEET_ROSTER GROUP BY ST_CD HAVING COUNT(DISTINCT IANA_TZ) > 1 ORDER BY ST_CD"
     @echo ""
 
-# The pre-push gauntlet: rebuild both sides from source, then assert. Run before pushing.
-check: rebuild test migrate parity
+# The pre-push gauntlet: infra tests, rebuild both sides from source, then assert. Run before pushing.
+check: infra-check rebuild test migrate parity

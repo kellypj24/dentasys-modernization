@@ -69,6 +69,23 @@ public sealed class OutboxDrainer : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Drain batch after batch, then return. This is the scheduled-job mode: the
+    /// process starts, empties the outbox, and exits, so it costs nothing between
+    /// runs. It stops on the first batch that publishes nothing, which also covers
+    /// a batch made entirely of failing events -- those wait for the next run
+    /// rather than spinning this one until the replica timeout.
+    /// </summary>
+    public async Task<int> DrainUntilEmptyAsync(CancellationToken ct = default)
+    {
+        var total = 0;
+        int drained;
+        while ((drained = await DrainOnceAsync(ct)) > 0) total += drained;
+
+        _log.LogInformation("outbox drained: published {Count} event(s)", total);
+        return total;
+    }
+
     public async Task<int> DrainOnceAsync(CancellationToken ct = default)
     {
         await using var conn = new NpgsqlConnection(_options.ConnectionString);
