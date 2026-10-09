@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: fct_production_collection_daily
+    description: >
+      Production, adjustments and collections per practice, provider and day.
+      The replacement for usp_RptProductionCollection; the parity harness sums
+      it over the proc's date range and compares provider by provider.
+    columns:
+      - name: practice_id
+        data_tests: [not_null]
+      - name: entry_date
+        data_tests: [not_null]
+      - name: production
+        data_tests: [not_null]
+      - name: collections
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "practice_id || '|' || coalesce(provider_code, '') || '|' || entry_date"

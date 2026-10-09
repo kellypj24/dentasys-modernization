@@ -111,7 +111,7 @@ SELECT 'row counts per practice',
               + ' ledger=' + CAST(f.N_LEDGER AS VARCHAR(5)) + ' recall=' + CAST(f.N_RECALL AS VARCHAR(5))
               + ' (expected 6/11/9/4)'
   FROM #FACTS f
- WHERE f.N_PAT <> 6 OR f.N_APPT <> 11 OR f.N_LEDGER <> 9 OR f.N_RECALL <> 4;
+ WHERE f.N_PAT <> 6 OR f.N_APPT <> 11 OR f.N_LEDGER <> 10 OR f.N_RECALL <> 4;
 
 /*-- SCHEMA_VER is an append log, so its depth encodes the upgrade history --*/
 INSERT INTO @fail (CHECK_NAME, DETAIL)

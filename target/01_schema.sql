@@ -172,7 +172,7 @@ CREATE INDEX appointment_practice_local_idx ON dentasys.appointment (practice_id
 CREATE TABLE dentasys.migration_exception (
     exception_id  bigserial PRIMARY KEY,
     practice_id   text NOT NULL,
-    entity        text NOT NULL,   -- 'practice' | 'appointment'
+    entity        text NOT NULL,   -- 'practice' | 'appointment' | 'ledger_entry'
     entity_key    text,
     kind          text NOT NULL,
     detail        text NOT NULL,
@@ -235,6 +235,14 @@ CREATE TABLE landing_.proc_code (
     prac_id text NOT NULL, proc_cd text NOT NULL,
     proc_desc text, default_fee text, active_flg text,
     PRIMARY KEY (prac_id, proc_cd)
+);
+
+CREATE TABLE landing_.ledger (
+    prac_id text NOT NULL, tran_id text NOT NULL, pat_id text,
+    tran_dt text, tran_type text, proc_cd text, prov_cd text,
+    amt text, ins_est_amt text, paid_amt text,   -- FLOAT, full precision (#2)
+    applied_to text, post_dtm text, del_flg text,
+    PRIMARY KEY (prac_id, tran_id)
 );
 
 /*------------------------------------------------------------------------------
@@ -306,6 +314,38 @@ CREATE TABLE dentasys.procedure_code (
     default_fee    numeric(12,2),
     is_active      boolean NOT NULL,
     PRIMARY KEY (practice_id, procedure_code)
+);
+
+/*------------------------------------------------------------------------------
+  ledger_entry
+
+  Money is numeric(12,2), so every report built on this table disagrees with
+  the legacy FLOAT totals by representation error (LANDMINE #2) -- correctly.
+
+  procedure_code and provider_code are citext for the same reason as
+  procedure_code.procedure_code: the legacy joins are case-insensitive and the
+  report depends on it (#3).
+
+  applied_to_entry_id has no foreign key. The source has orphaned references,
+  and a real FK would reject those rows -- losing a payment from the books to
+  enforce a link nobody reads. The transform keeps the row and records each
+  orphan in migration_exception instead.
+------------------------------------------------------------------------------*/
+CREATE TABLE dentasys.ledger_entry (
+    practice_id          text NOT NULL REFERENCES dentasys.practice(practice_id),
+    ledger_entry_id      bigint NOT NULL,
+    patient_id           bigint,
+    entry_date           date NOT NULL,
+    entry_type           char(1) NOT NULL CHECK (entry_type IN ('C', 'P', 'A', 'I')),
+    procedure_code       citext,
+    provider_code        citext,
+    amount               numeric(12,2) NOT NULL,
+    insurance_estimate   numeric(12,2),
+    paid_amount          numeric(12,2) NOT NULL,
+    applied_to_entry_id  bigint,
+    posted_local         timestamp,        -- wall clock, like everything else in the source
+    is_deleted           boolean NOT NULL,
+    PRIMARY KEY (practice_id, ledger_entry_id)
 );
 
 /*------------------------------------------------------------------------------

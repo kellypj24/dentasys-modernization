@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: dentasys
+    description: The migrated target in PostgreSQL. Read once per build, read-only.
+    database: pg
+    schema: dentasys
+    tables:
+      - name: ledger_entry
+      - name: procedure_code

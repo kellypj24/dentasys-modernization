@@ -85,4 +85,32 @@ public sealed class RuleBook
             Claims = (legacy, modern) => modern is null,
         },
     });
+
+    /// <summary>
+    /// The rules for the production/collection report. One claim, applied to each
+    /// money column: the legacy totals are FLOAT sums and the modern ones are exact
+    /// decimal. Bounded at half a cent per total -- representation error over a
+    /// practice's ledger is many orders of magnitude below that, so anything larger
+    /// is a real disagreement about which rows were counted.
+    /// </summary>
+    public static RuleBook ForProductionReport() => new(
+        new[]
+        {
+            nameof(ProviderTotals.Production),
+            nameof(ProviderTotals.Adjustments),
+            nameof(ProviderTotals.NetProduction),
+            nameof(ProviderTotals.Collections),
+        }
+        .Select(field => new DivergenceRule
+        {
+            Name = "float_sum_to_decimal_sum",
+            Field = field,
+            Disposition = Disposition.ExpectedDivergence,
+            Rationale =
+                "usp_RptProductionCollection sums FLOAT (LANDMINE #2); the analytics model " +
+                "sums numeric. The modern total is the exact one.",
+            Claims = (legacy, modern) =>
+                legacy is decimal l && modern is decimal m && Math.Abs(l - m) < 0.005m,
+        })
+        .ToList());
 }

@@ -71,9 +71,9 @@ shell DB="DENTASYS_FLEET":
 target-shell:
     docker exec -it {{TARGET}} psql -U dentasys -d dentasys
 
-# Create the legacy schema and the hot-path proc
+# Create the legacy schema and the procs
 schema: (run "legacy/01_schema.sql")
-    @just run legacy/procs/usp_GetScheduleForDay.sql -d DENTASYS
+    @for f in legacy/procs/*.sql; do just run "$f" -d DENTASYS; done
 
 # Seed the single-practice sandbox (DENTASYS)
 seed: (run "legacy/02_seed.sql")
@@ -87,12 +87,12 @@ fleet: (run "legacy/03_seed_fleet.sql")
 install-procs:
     @ids="$(just _practice-ids)"; \
      [ -n "$ids" ] || { echo "no practices found -- is the fleet spawned?" >&2; exit 1; }; \
-     for p in $ids; do \
+     for p in $ids; do for f in legacy/procs/*.sql; do \
         docker exec -i {{LEGACY}} /opt/mssql-tools18/bin/sqlcmd \
             -S localhost -U sa -P '{{SA_PASS}}' -C -b -d "DENTASYS_$p" \
-            -i /dev/stdin < legacy/procs/usp_GetScheduleForDay.sql; \
-    done
-    @echo "usp_GetScheduleForDay installed fleet-wide"
+            -i /dev/stdin < "$f"; \
+    done; done
+    @echo "procs installed fleet-wide: $(cd legacy/procs && ls *.sql | sed 's/.sql//' | tr '\n' ' ')"
 
 [private]
 _practice-ids:
@@ -149,6 +149,21 @@ score: (prun "target/04_score.sql")
 
 # The whole modernization path: target schema, export, transform, score
 migrate: target-schema export transform score
+
+# ---------------------------------------------------------------------------
+# analytics (dbt on DuckDB)
+# ---------------------------------------------------------------------------
+
+# Copy the ledger out of PostgreSQL into DuckDB and build the report models + tests
+analytics:
+    @cd analytics && uv run --quiet dbt build --profiles-dir . --quiet
+
+# Production/collection report from DuckDB, e.g. just report 000418 2026-03-01 2026-03-31
+report PRACTICE FROM TO:
+    @duckdb -readonly analytics/dentasys.duckdb "SELECT provider_code, sum(production) AS production, \
+        sum(adjustments) AS adjustments, sum(net_production) AS net_production, sum(collections) AS collections \
+        FROM fct_production_collection_daily WHERE practice_id = '{{PRACTICE}}' \
+        AND entry_date BETWEEN '{{FROM}}' AND '{{TO}}' GROUP BY ALL ORDER BY ALL"
 
 # ---------------------------------------------------------------------------
 # the application
@@ -344,5 +359,5 @@ verify:
     @just query "SELECT ST_CD, COUNT(DISTINCT IANA_TZ) AS ZONES FROM FLEET_ROSTER GROUP BY ST_CD HAVING COUNT(DISTINCT IANA_TZ) > 1 ORDER BY ST_CD"
     @echo ""
 
-# The pre-push gauntlet: infra tests, rebuild both sides from source, then assert. Run before pushing.
-check: infra-check rebuild test migrate parity
+# The pre-push gauntlet: infra tests, rebuild both sides from source, build analytics, then assert. Run before pushing.
+check: infra-check rebuild test migrate analytics parity

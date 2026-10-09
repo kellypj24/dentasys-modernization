@@ -1,0 +1,13 @@
+dentasys:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('DENTASYS_DUCKDB', 'dentasys.duckdb') }}"
+      threads: 4
+      extensions: [postgres]
+      attach:
+        - path: "{{ env_var('DENTASYS_TARGET_PG', 'host=localhost port=15432 dbname=dentasys user=dentasys password=dentasys') }}"
+          type: postgres
+          alias: pg
+          read_only: true
