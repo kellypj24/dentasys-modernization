@@ -10,9 +10,10 @@
   CHAR(8) dates or FLOAT money in the pipe would put the most failure-prone
   logic in the one place with no tests and no error messages.
 
-  Emits three streams:
+  Emits:
     landing_.practice      raw practice rows
     landing_.appt          raw appointment rows, all 24 practices
+    landing_.pat_mstr / prov / oper / proc_code / ledger
     harness.fleet_roster   ground truth -- into the fenced schema, for scoring
 ==============================================================================*/
 
@@ -35,6 +36,7 @@ GO
 
 DROP TABLE IF EXISTS #PRAC_RAW;
 DROP TABLE IF EXISTS #APPT_RAW;
+DROP TABLE IF EXISTS #LEDGER_RAW;
 DROP TABLE IF EXISTS #OUT;
 
 CREATE TABLE #PRAC_RAW (
@@ -64,9 +66,15 @@ CREATE TABLE #PROC_RAW (
     PRAC_ID VARCHAR(20), PROC_CD VARCHAR(20), PROC_DESC VARCHAR(120),
     DEFAULT_FEE VARCHAR(50), ACTIVE_FLG VARCHAR(5));
 
+CREATE TABLE #LEDGER_RAW (
+    PRAC_ID VARCHAR(20), TRAN_ID VARCHAR(20), PAT_ID VARCHAR(20), TRAN_DT VARCHAR(20),
+    TRAN_TYPE VARCHAR(5), PROC_CD VARCHAR(20), PROV_CD VARCHAR(10), AMT VARCHAR(50),
+    INS_EST_AMT VARCHAR(50), PAID_AMT VARCHAR(50), APPLIED_TO VARCHAR(20),
+    POST_DTM VARCHAR(30), DEL_FLG VARCHAR(10));
+
 CREATE TABLE #OUT (SEQ INT IDENTITY(1,1) PRIMARY KEY, LINE VARCHAR(MAX));
 
-DECLARE @p CHAR(6), @db SYSNAME, @sql NVARCHAR(MAX);
+DECLARE @p CHAR(6), @db SYSNAME, @sql NVARCHAR(MAX), @ins_est NVARCHAR(100);
 DECLARE x CURSOR LOCAL FAST_FORWARD FOR SELECT PRAC_ID FROM FLEET_ROSTER ORDER BY SEQ;
 OPEN x;
 FETCH NEXT FROM x INTO @p;
@@ -113,6 +121,21 @@ BEGIN
                    FROM ' + @db + N'.dbo.PROC_CODE;';
     INSERT INTO #PROC_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
 
+    -- INS_EST_AMT arrived in 07.00.09, so older practices do not have the
+    -- column at all. Absent lands as NULL, which is indistinguishable from a
+    -- NULL estimate -- acceptable here because nothing downstream reads it yet,
+    -- and schema_ver on landing_.practice records which case applies.
+    -- Money goes through CONVERT style 2 for the same reason as BAL_AMT.
+    SET @ins_est = CASE WHEN COL_LENGTH(N'DENTASYS_' + @p + N'.dbo.LEDGER', 'INS_EST_AMT') IS NULL
+                        THEN N'NULL' ELSE N'CONVERT(VARCHAR(53), INS_EST_AMT, 2)' END;
+    SET @sql = N'SELECT RTRIM(@pp), CAST(TRAN_ID AS VARCHAR(20)), CAST(PAT_ID AS VARCHAR(20)),
+                        RTRIM(TRAN_DT), TRAN_TYPE, RTRIM(PROC_CD), RTRIM(PROV_CD),
+                        CONVERT(VARCHAR(53), AMT, 2), ' + @ins_est + N',
+                        CONVERT(VARCHAR(53), PAID_AMT, 2), CAST(APPLIED_TO AS VARCHAR(20)),
+                        CONVERT(VARCHAR(30), POST_DTM, 126), DEL_FLG
+                   FROM ' + @db + N'.dbo.LEDGER;';
+    INSERT INTO #LEDGER_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
+
     FETCH NEXT FROM x INTO @p;
 END
 CLOSE x;
@@ -123,7 +146,7 @@ DEALLOCATE x;
 ------------------------------------------------------------------------------*/
 INSERT INTO #OUT (LINE) VALUES ('\set ON_ERROR_STOP on');
 INSERT INTO #OUT (LINE) VALUES ('BEGIN;');
-INSERT INTO #OUT (LINE) VALUES ('TRUNCATE landing_.practice, landing_.appt, landing_.pat_mstr, landing_.prov, landing_.oper, landing_.proc_code, harness.fleet_roster;');
+INSERT INTO #OUT (LINE) VALUES ('TRUNCATE landing_.practice, landing_.appt, landing_.pat_mstr, landing_.prov, landing_.oper, landing_.proc_code, landing_.ledger, harness.fleet_roster;');
 
 INSERT INTO #OUT (LINE) VALUES
     ('COPY landing_.practice (prac_id, prac_nm, addr_1, city, st_cd, zip_cd, phone, schema_ver) FROM stdin;');
@@ -177,6 +200,17 @@ INSERT INTO #OUT (LINE)
 SELECT dbo.pgtext(PRAC_ID) + CHAR(9) + dbo.pgtext(PROC_CD) + CHAR(9) + dbo.pgtext(PROC_DESC) + CHAR(9)
      + dbo.pgtext(DEFAULT_FEE) + CHAR(9) + dbo.pgtext(ACTIVE_FLG)
   FROM #PROC_RAW;
+INSERT INTO #OUT (LINE) VALUES ('\.');
+
+INSERT INTO #OUT (LINE) VALUES
+    ('COPY landing_.ledger (prac_id, tran_id, pat_id, tran_dt, tran_type, proc_cd, prov_cd, amt, ins_est_amt, paid_amt, applied_to, post_dtm, del_flg) FROM stdin;');
+INSERT INTO #OUT (LINE)
+SELECT dbo.pgtext(PRAC_ID)  + CHAR(9) + dbo.pgtext(TRAN_ID)   + CHAR(9) + dbo.pgtext(PAT_ID)   + CHAR(9)
+     + dbo.pgtext(TRAN_DT)  + CHAR(9) + dbo.pgtext(TRAN_TYPE) + CHAR(9) + dbo.pgtext(PROC_CD)  + CHAR(9)
+     + dbo.pgtext(PROV_CD)  + CHAR(9) + dbo.pgtext(AMT)       + CHAR(9) + dbo.pgtext(INS_EST_AMT) + CHAR(9)
+     + dbo.pgtext(PAID_AMT) + CHAR(9) + dbo.pgtext(APPLIED_TO) + CHAR(9) + dbo.pgtext(POST_DTM) + CHAR(9)
+     + dbo.pgtext(DEL_FLG)
+  FROM #LEDGER_RAW;
 INSERT INTO #OUT (LINE) VALUES ('\.');
 
 -- Ground truth goes to the fenced schema. The transform never reads it.

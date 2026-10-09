@@ -246,7 +246,11 @@ INSERT INTO TPL_LEDGER (N, PAT_N, TRAN_DT, TRAN_TYPE, PROC_CD, PROV, AMT, INS_ES
     (8,1,'20260302','C','D1110','HYG1', 118.00,   0.00, 118.00,NULL,'LIVE','paid same day'),
     -- APPLIED_TO points at a TRAN_ID that will not exist. Orphaned references
     -- are in the real data; a migration with a real FK will reject this row.
-    (9,4,'20260310','P',NULL,   'HYG1',   0.00,   0.00,  40.00, 999,'LIVE','orphaned APPLIED_TO -- no such TRAN_ID');
+    (9,4,'20260310','P',NULL,   'HYG1',   0.00,   0.00,  40.00, 999,'LIVE','orphaned APPLIED_TO -- no such TRAN_ID'),
+    -- Keyed in against the wrong patient and soft-deleted. The production report
+    -- must not count it; on 06.04.02 and 07.00.09 practices the LIVE rows around
+    -- it carry '' and NULL, so the predicate has to tell all three apart (#10).
+    (10,3,'20260304','C','D0220','DDS2',  38.50,   0.00,   0.00,NULL,'DELETED','charge entered in error');
 GO
 
 DROP TABLE IF EXISTS TPL_RECALL;

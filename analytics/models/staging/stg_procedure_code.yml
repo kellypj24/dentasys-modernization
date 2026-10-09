@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: stg_procedure_code
+    description: Procedure codes per practice, upper-cased for case-insensitive joins.
+    data_tests:
+      # Upper-casing is only safe if no practice has two codes differing only in
+      # case. If one ever does, this fails instead of production double-counting.
+      - unique:
+          arguments:
+            column_name: "practice_id || '|' || procedure_code"

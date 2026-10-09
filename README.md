@@ -217,8 +217,8 @@ connection because it has nothing to open one with.
 - [x] **Parity harness** — proc vs C#, and legacy stack vs modern stack, across the fleet
 - [x] **Writes** — commands, invariants, domain events, transactional outbox, drainer worker
 - [x] **Write parity** — quantifies the behavior change the hidden trigger was masking
-- [ ] Remaining three procs and their destinations
-- [ ] Analytics: DuckDB + dbt for the production/collection report, fed from PostgreSQL
+- [ ] Remaining two procs: `usp_NightlyRecallAndClaims` → worker, `usp_PostLedgerAndAging` → C# domain service
+- [x] **Analytics** — `usp_RptProductionCollection` as the oracle; dbt on DuckDB reads PostgreSQL once and reports off it; report parity across the fleet
 - [x] Azure target in Terraform — Postgres Flexible Server, free-tier SKUs asserted by `terraform test` (`infra/README.md`)
 - [x] Azure apps in Terraform — API scales to zero, outbox worker is a scheduled job (`--once`); images smoke-tested locally
 - [ ] Azure: first real deploy inside the free-account window; run `just migrate` against the cloud target
@@ -227,13 +227,15 @@ connection because it has nothing to open one with.
 
 ## Setup
 
-Needed now: **Docker**, the **.NET 10 SDK** and **Terraform**. Needed only to
+Needed now: **Docker**, the **.NET 10 SDK**, **Terraform**, **uv** (dbt) and the
+**DuckDB CLI** (`just report`). Needed only to
 deploy: the Azure CLI. Read `infra/README.md` before creating an Azure account.
 
 ```bash
 brew install --cask docker
 brew install dotnet          # 10.0 or newer
 brew install terraform       # or hashicorp/tap/terraform
+brew install uv duckdb
 ```
 
 **Apple Silicon:** there is no ARM64 SQL Server image, and Azure SQL Edge was
@@ -257,7 +259,7 @@ legacy/              SQL Server. 1997 data model, current engine, defects intact
   01_schema.sql
   02_seed.sql          one practice, synthetic, every row tied to a landmine
   03_seed_fleet.sql    24 databases that disagree with each other
-  procs/               the oracle, not a dependency
+  procs/               the oracles, not dependencies: schedule and production report
 
 target/              the PostgreSQL side
   01_schema.sql        landing_ / dentasys / harness, and why they are separate
@@ -266,6 +268,10 @@ target/              the PostgreSQL side
   04_score.sql         scored against ground truth; asserts the safety property
   05_write_model.sql   outbox, audit, and the constraints 1997 never had
   export_fleet.sql     SQL Server -> psql COPY stream
+
+analytics/            dbt on DuckDB. Reads PostgreSQL read-only, once per build
+  models/staging/      copies of ledger_entry / procedure_code; codes upper-cased (#3)
+  models/marts/        fct_production_collection_daily -- the report, any date range
 
 dotnet/
   Dockerfile                    one build, two images: --target api / --target worker
@@ -307,7 +313,9 @@ just up            # start both engines, block until healthy
 just build         # legacy schema + procs + sandbox seed + 24-practice fleet
 just migrate       # target schema, export, transform, score against ground truth
 just test          # assert the fleet matches the roster
-just parity        # the harness: proc vs C#, and legacy stack vs modern stack
+just analytics     # dbt on DuckDB: copy the ledger out of PostgreSQL, build the report
+just parity        # the harness: schedule (proc vs C#, legacy vs modern) and report
+just report 000418 2026-03-01 2026-03-31   # the production/collection report, from DuckDB
 ```
 
 `just check` is the gauntlet — rebuild both engines from source, then assert
@@ -550,6 +558,35 @@ not a time: 44 differences where there should have been 240.
 The raw text is now carried through unparsed and compared as text. A harness that
 launders the defect it exists to find is worse than no harness, and the only
 reason this surfaced was a count that looked implausible.
+
+## The production report
+
+`usp_RptProductionCollection` is the oracle; `fct_production_collection_daily`
+in `analytics/` is the replacement. Report parity runs the proc and the dbt model
+for every practice over five date ranges and compares each provider's production,
+adjustments, net production and collections.
+
+One rule is allowed to explain a difference: the proc sums FLOAT and the model
+sums decimal, bounded at half a cent per total. The harness reads the proc's
+totals at 17 significant digits (`866.72000000000003`), because rounding them on
+the way in would make that rule unfalsifiable.
+
+Two traps the harness catches if the model gets them wrong, both checked by
+breaking the model and watching it fail:
+
+| Change to the model | Result |
+|---|---|
+| Join procedure codes without upper-casing | 96 regressions: `d1110` is stored lowercase on half the fleet, the legacy CI join counts those charges, DuckDB's does not (#3) |
+| Count soft-deleted rows | 96 regressions: the `DDS2` charge entered in error comes back (#10) |
+
+A quirk reproduced on purpose: a charge row that carries `PAID_AMT` ("paid same
+day") is not a collection, because collections are `P` and `I` rows only. Owners
+who take payment at the chair have always seen collections run low. Fixing that
+is a decision to announce, not a side effect of migrating.
+
+DuckDB reads PostgreSQL once per `dbt build`, into staging tables. The report,
+`just report` and the parity test read the DuckDB file and never open a connection
+to the transactional store.
 
 ## Writes
 

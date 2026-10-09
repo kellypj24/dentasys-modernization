@@ -94,7 +94,8 @@ SELECT p.practice_id, 'practice', p.practice_id,
 ==============================================================================*/
 
 TRUNCATE dentasys.patient, dentasys.provider, dentasys.operatory,
-         dentasys.procedure_code, dentasys.practice_config RESTART IDENTITY CASCADE;
+         dentasys.procedure_code, dentasys.practice_config,
+         dentasys.ledger_entry RESTART IDENTITY CASCADE;
 
 INSERT INTO dentasys.patient
     (practice_id, patient_id, chart_number, last_name, first_name, middle_initial,
@@ -133,6 +134,30 @@ SELECT l.prac_id, trim(l.proc_cd)::citext, l.proc_desc,
        round(nullif(trim(l.default_fee), '')::numeric, 2),
        upper(trim(coalesce(l.active_flg, 'Y'))) <> 'N'
   FROM landing_.proc_code l JOIN dentasys.practice p ON p.practice_id = l.prac_id;
+
+/*  ledger_entry. Amounts round to the cent here, once, in SQL that can be
+    re-run -- not in the transport and not in each report. NULL money becomes 0
+    because the legacy report's SUM(CASE ... ELSE 0) already treats it that way;
+    a NULL that SUM skipped and a 0 it added are the same total.               */
+INSERT INTO dentasys.ledger_entry
+    (practice_id, ledger_entry_id, patient_id, entry_date, entry_type,
+     procedure_code, provider_code, amount, insurance_estimate, paid_amount,
+     applied_to_entry_id, posted_local, is_deleted)
+SELECT l.prac_id,
+       l.tran_id::bigint,
+       l.pat_id::bigint,
+       to_date(trim(l.tran_dt), 'YYYYMMDD'),
+       upper(trim(l.tran_type))::char(1),
+       nullif(trim(l.proc_cd), '')::citext,
+       nullif(trim(l.prov_cd), '')::citext,
+       coalesce(round(nullif(trim(l.amt), '')::numeric, 2), 0),
+       round(nullif(trim(l.ins_est_amt), '')::numeric, 2),
+       coalesce(round(nullif(trim(l.paid_amt), '')::numeric, 2), 0),
+       l.applied_to::bigint,
+       l.post_dtm::timestamp,
+       upper(trim(coalesce(l.del_flg, ''))) = 'Y'
+  FROM landing_.ledger l
+  JOIN dentasys.practice p ON p.practice_id = l.prac_id;
 
 /*  dentasys.practice_config is deliberately NOT populated. The appointment grid
     is not in the source database and cannot be derived from it. It gets filled
@@ -225,3 +250,16 @@ SELECT p.practice_id, 'practice', p.practice_id,
   JOIN dentasys.practice p ON p.practice_id = a.practice_id
  WHERE NOT EXISTS (SELECT 1 FROM dentasys.practice_config pc WHERE pc.practice_id = p.practice_id)
  GROUP BY p.practice_id;
+
+INSERT INTO dentasys.migration_exception (practice_id, entity, entity_key, kind, detail, severity)
+SELECT e.practice_id, 'ledger_entry', e.ledger_entry_id::text,
+       'ledger_applied_to_orphaned',
+       format('Entry %s is applied to entry %s, which does not exist. The row is kept '
+              '-- dropping it would drop money -- and the link is left as found.',
+              e.ledger_entry_id, e.applied_to_entry_id),
+       'review'
+  FROM dentasys.ledger_entry e
+ WHERE e.applied_to_entry_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM dentasys.ledger_entry t
+                    WHERE t.practice_id = e.practice_id
+                      AND t.ledger_entry_id = e.applied_to_entry_id);

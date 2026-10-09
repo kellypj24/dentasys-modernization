@@ -1,0 +1,20 @@
+name: dentasys
+version: "1.0.0"
+config-version: 2
+
+profile: dentasys
+
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target"]
+
+models:
+  dentasys:
+    # Staging is a TABLE, not a view: it is the one read against PostgreSQL.
+    # Everything downstream -- marts, the report, the parity harness -- reads
+    # DuckDB and never opens a connection to the database the front desk uses.
+    staging:
+      +materialized: table
+    marts:
+      +materialized: table

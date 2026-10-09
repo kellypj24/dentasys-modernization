@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: stg_ledger_entry
+    description: >
+      Ledger rows copied out of PostgreSQL. Procedure and provider codes are
+      upper-cased to reproduce the legacy server's case-insensitive joins.
+    columns:
+      - name: ledger_entry_id
+        data_tests: [not_null]
+      - name: practice_id
+        data_tests: [not_null]
+      - name: entry_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['C', 'P', 'A', 'I']
+      - name: amount
+        data_tests: [not_null]
+      - name: paid_amount
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "practice_id || '|' || ledger_entry_id"
