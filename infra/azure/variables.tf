@@ -48,6 +48,12 @@ variable "worker_image" {
   default     = null
 }
 
+variable "recall_cron" {
+  description = "When the nightly recall run fires, in UTC. 09:00 UTC is 2-5 AM across the continental US."
+  type        = string
+  default     = "0 9 * * *"
+}
+
 variable "outbox_cron" {
   description = "How often the outbox job runs. Each run drains until empty, then exits."
   type        = string

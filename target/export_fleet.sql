@@ -13,7 +13,7 @@
   Emits:
     landing_.practice      raw practice rows
     landing_.appt          raw appointment rows, all 24 practices
-    landing_.pat_mstr / prov / oper / proc_code / ledger
+    landing_.pat_mstr / prov / oper / proc_code / ledger / recall
     harness.fleet_roster   ground truth -- into the fenced schema, for scoring
 ==============================================================================*/
 
@@ -37,6 +37,7 @@ GO
 DROP TABLE IF EXISTS #PRAC_RAW;
 DROP TABLE IF EXISTS #APPT_RAW;
 DROP TABLE IF EXISTS #LEDGER_RAW;
+DROP TABLE IF EXISTS #RECALL_RAW;
 DROP TABLE IF EXISTS #OUT;
 
 CREATE TABLE #PRAC_RAW (
@@ -72,9 +73,13 @@ CREATE TABLE #LEDGER_RAW (
     INS_EST_AMT VARCHAR(50), PAID_AMT VARCHAR(50), APPLIED_TO VARCHAR(20),
     POST_DTM VARCHAR(30), DEL_FLG VARCHAR(10));
 
+CREATE TABLE #RECALL_RAW (
+    PRAC_ID VARCHAR(20), RECALL_ID VARCHAR(20), PAT_ID VARCHAR(20), RECALL_TYPE VARCHAR(10),
+    DUE_YM VARCHAR(10), LAST_SENT_DT VARCHAR(20), DEL_FLG VARCHAR(10));
+
 CREATE TABLE #OUT (SEQ INT IDENTITY(1,1) PRIMARY KEY, LINE VARCHAR(MAX));
 
-DECLARE @p CHAR(6), @db SYSNAME, @sql NVARCHAR(MAX), @ins_est NVARCHAR(100);
+DECLARE @p CHAR(6), @db SYSNAME, @sql NVARCHAR(MAX), @ins_est NVARCHAR(100), @recall_del NVARCHAR(100);
 DECLARE x CURSOR LOCAL FAST_FORWARD FOR SELECT PRAC_ID FROM FLEET_ROSTER ORDER BY SEQ;
 OPEN x;
 FETCH NEXT FROM x INTO @p;
@@ -136,6 +141,15 @@ BEGIN
                    FROM ' + @db + N'.dbo.LEDGER;';
     INSERT INTO #LEDGER_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
 
+    -- RECALL.DEL_FLG arrived in 07.02.11. Before that a recall could not be
+    -- cancelled in the data at all, so absent lands as NULL: not deleted.
+    SET @recall_del = CASE WHEN COL_LENGTH(N'DENTASYS_' + @p + N'.dbo.RECALL', 'DEL_FLG') IS NULL
+                           THEN N'NULL' ELSE N'DEL_FLG' END;
+    SET @sql = N'SELECT RTRIM(@pp), CAST(RECALL_ID AS VARCHAR(20)), CAST(PAT_ID AS VARCHAR(20)),
+                        RTRIM(RECALL_TYPE), DUE_YM, RTRIM(LAST_SENT_DT), ' + @recall_del + N'
+                   FROM ' + @db + N'.dbo.RECALL;';
+    INSERT INTO #RECALL_RAW EXEC sp_executesql @sql, N'@pp CHAR(6)', @pp = @p;
+
     FETCH NEXT FROM x INTO @p;
 END
 CLOSE x;
@@ -146,7 +160,7 @@ DEALLOCATE x;
 ------------------------------------------------------------------------------*/
 INSERT INTO #OUT (LINE) VALUES ('\set ON_ERROR_STOP on');
 INSERT INTO #OUT (LINE) VALUES ('BEGIN;');
-INSERT INTO #OUT (LINE) VALUES ('TRUNCATE landing_.practice, landing_.appt, landing_.pat_mstr, landing_.prov, landing_.oper, landing_.proc_code, landing_.ledger, harness.fleet_roster;');
+INSERT INTO #OUT (LINE) VALUES ('TRUNCATE landing_.practice, landing_.appt, landing_.pat_mstr, landing_.prov, landing_.oper, landing_.proc_code, landing_.ledger, landing_.recall, harness.fleet_roster;');
 
 INSERT INTO #OUT (LINE) VALUES
     ('COPY landing_.practice (prac_id, prac_nm, addr_1, city, st_cd, zip_cd, phone, schema_ver) FROM stdin;');
@@ -211,6 +225,15 @@ SELECT dbo.pgtext(PRAC_ID)  + CHAR(9) + dbo.pgtext(TRAN_ID)   + CHAR(9) + dbo.pg
      + dbo.pgtext(PAID_AMT) + CHAR(9) + dbo.pgtext(APPLIED_TO) + CHAR(9) + dbo.pgtext(POST_DTM) + CHAR(9)
      + dbo.pgtext(DEL_FLG)
   FROM #LEDGER_RAW;
+INSERT INTO #OUT (LINE) VALUES ('\.');
+
+INSERT INTO #OUT (LINE) VALUES
+    ('COPY landing_.recall (prac_id, recall_id, pat_id, recall_type, due_ym, last_sent_dt, del_flg) FROM stdin;');
+INSERT INTO #OUT (LINE)
+SELECT dbo.pgtext(PRAC_ID) + CHAR(9) + dbo.pgtext(RECALL_ID)   + CHAR(9) + dbo.pgtext(PAT_ID)       + CHAR(9)
+     + dbo.pgtext(RECALL_TYPE) + CHAR(9) + dbo.pgtext(DUE_YM)  + CHAR(9) + dbo.pgtext(LAST_SENT_DT) + CHAR(9)
+     + dbo.pgtext(DEL_FLG)
+  FROM #RECALL_RAW;
 INSERT INTO #OUT (LINE) VALUES ('\.');
 
 -- Ground truth goes to the fenced schema. The transform never reads it.

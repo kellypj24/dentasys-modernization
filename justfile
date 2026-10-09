@@ -248,9 +248,14 @@ api:
 show PRACTICE DATE *FLAGS:
     @cd dotnet && dotnet run --project src/Dentasys.App -- {{PRACTICE}} {{DATE}} {{FLAGS}}
 
-# Drain the outbox -- the worker that replaces the 2 AM SQL Agent job
+# Drain the outbox, polling forever
 worker:
     @cd dotnet && dotnet run --project src/Dentasys.Worker
+
+# The nightly recall run, then drain -- replaces the 2 AM SQL Agent job. Writes
+# last_sent_on: run `just migrate` afterwards to restore the fixtures.
+recall DATE:
+    @cd dotnet && dotnet run --project src/Dentasys.Worker -- --recall {{DATE}}
 
 # Book an appointment through the API. Try 001010 on 2026-03-08 at 02:30.
 book PRACTICE PATIENT DATE TIME UNITS="6" OPER="OP1" PROV="DDS1":

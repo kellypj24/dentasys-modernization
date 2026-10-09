@@ -95,7 +95,7 @@ SELECT p.practice_id, 'practice', p.practice_id,
 
 TRUNCATE dentasys.patient, dentasys.provider, dentasys.operatory,
          dentasys.procedure_code, dentasys.practice_config,
-         dentasys.ledger_entry RESTART IDENTITY CASCADE;
+         dentasys.ledger_entry, dentasys.recall RESTART IDENTITY CASCADE;
 
 INSERT INTO dentasys.patient
     (practice_id, patient_id, chart_number, last_name, first_name, middle_initial,
@@ -158,6 +158,26 @@ SELECT l.prac_id,
        upper(trim(coalesce(l.del_flg, ''))) = 'Y'
   FROM landing_.ledger l
   JOIN dentasys.practice p ON p.practice_id = l.prac_id;
+
+/*  recall. The century comes from the 1999 pivot unless the patient's date of
+    birth proves it wrong: a recall cannot fall due before the patient exists.
+    Runs after patient, which it reads for that evidence.                      */
+INSERT INTO dentasys.recall
+    (practice_id, recall_id, patient_id, recall_type, due_month, due_ym_raw,
+     due_year_source, last_sent_on, is_deleted)
+SELECT r.prac_id, r.recall_id::bigint, r.pat_id::bigint, nullif(trim(r.recall_type), ''),
+       CASE WHEN pt.date_of_birth > r.pivoted THEN (r.pivoted + interval '100 years')::date
+            ELSE r.pivoted END,
+       r.due_ym,
+       CASE WHEN pt.date_of_birth > r.pivoted THEN 'patient_dob' ELSE 'legacy_pivot' END,
+       to_date(nullif(trim(r.last_sent_dt), ''), 'YYYYMMDD'),
+       upper(trim(coalesce(r.del_flg, ''))) = 'Y'
+  FROM (SELECT l.*,
+               to_date(CASE WHEN left(l.due_ym, 2) < '50' THEN '20' ELSE '19' END || l.due_ym || '01',
+                       'YYYYMMDD') AS pivoted
+          FROM landing_.recall l) r
+  JOIN dentasys.practice p ON p.practice_id = r.prac_id
+  LEFT JOIN dentasys.patient pt ON pt.practice_id = r.prac_id AND pt.patient_id = r.pat_id::bigint;
 
 /*  dentasys.practice_config is deliberately NOT populated. The appointment grid
     is not in the source database and cannot be derived from it. It gets filled
@@ -263,3 +283,15 @@ SELECT e.practice_id, 'ledger_entry', e.ledger_entry_id::text,
    AND NOT EXISTS (SELECT 1 FROM dentasys.ledger_entry t
                     WHERE t.practice_id = e.practice_id
                       AND t.ledger_entry_id = e.applied_to_entry_id);
+
+INSERT INTO dentasys.migration_exception (practice_id, entity, entity_key, kind, detail, severity)
+SELECT r.practice_id, 'recall', r.recall_id::text,
+       'recall_due_year_repivoted',
+       format('DUE_YM ''%s'' pivots to %s under the 1999 window, before patient %s was '
+              'born. Resolved to %s. The legacy job has been sending this recall '
+              'every 30 days as 75 years overdue.',
+              r.due_ym_raw, to_char(r.due_month - interval '100 years', 'YYYY-MM'),
+              r.patient_id, to_char(r.due_month, 'YYYY-MM')),
+       'review'
+  FROM dentasys.recall r
+ WHERE r.due_year_source = 'patient_dob';

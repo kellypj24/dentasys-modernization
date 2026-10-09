@@ -62,3 +62,16 @@ public sealed record AppointmentCompleted : DomainEvent
     public required long PatientId { get; init; }
     public required DateOnly LocalDate { get; init; }
 }
+
+/// <summary>
+/// A recall reminder is owed to a patient. Raised by the nightly recall run; the
+/// letter or text that follows is a consumer's job, outside this transaction.
+/// </summary>
+public sealed record RecallDue : DomainEvent
+{
+    public required long RecallId { get; init; }
+    public required long PatientId { get; init; }
+    public string? RecallType { get; init; }
+    public required DateOnly DueMonth { get; init; }
+    public required DateOnly RunDate { get; init; }
+}

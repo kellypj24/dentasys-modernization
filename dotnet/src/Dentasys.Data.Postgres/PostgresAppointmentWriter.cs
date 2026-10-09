@@ -88,7 +88,7 @@ public sealed class PostgresAppointmentWriter : IAppointmentWriter
         };
 
         await AuditAsync(conn, tx, cmd.PracticeId, appointmentId, "booked", cmd.ActorId, booked, ct);
-        await EnqueueAsync(conn, tx, booked, ct);
+        await Outbox.EnqueueAsync(conn, tx, booked, ct);
         await tx.CommitAsync(ct);
 
         return new CommandOutcome
@@ -156,7 +156,7 @@ public sealed class PostgresAppointmentWriter : IAppointmentWriter
         }
 
         await AuditAsync(conn, tx, cmd.PracticeId, cmd.AppointmentId, "completed", cmd.ActorId, completed, ct);
-        await EnqueueAsync(conn, tx, completed, ct);
+        await Outbox.EnqueueAsync(conn, tx, completed, ct);
 
         return new CommandOutcome
         {
@@ -186,7 +186,7 @@ public sealed class PostgresAppointmentWriter : IAppointmentWriter
         };
 
         await AuditAsync(conn, tx, cmd.PracticeId, cmd.AppointmentId, "cancelled", cmd.ActorId, cancelled, ct);
-        await EnqueueAsync(conn, tx, cancelled, ct);
+        await Outbox.EnqueueAsync(conn, tx, cancelled, ct);
         await tx.CommitAsync(ct);
 
         return new CommandOutcome
@@ -222,18 +222,6 @@ public sealed class PostgresAppointmentWriter : IAppointmentWriter
     private sealed record OccupiedRow(long AppointmentId, string OperatoryCode, TimeOnly Start, int? LengthUnits);
     private sealed record CompletionRow(long PatientId, DateOnly LocalDate);
     private sealed record PracticeFactsRow(string? Tz, int? Grid);
-
-    private static Task EnqueueAsync(
-        NpgsqlConnection conn, NpgsqlTransaction tx, DomainEvent e, CancellationToken ct) =>
-        conn.ExecuteAsync(new CommandDefinition("""
-            INSERT INTO dentasys.outbox (event_id, practice_id, event_type, occurred_at, actor_id, payload)
-            VALUES (@EventId, @PracticeId, @EventType, @OccurredAt, @ActorId, @Payload::jsonb)
-            """,
-            new
-            {
-                e.EventId, e.PracticeId, e.EventType, e.OccurredAt, e.ActorId,
-                Payload = JsonSerializer.Serialize(e, e.GetType(), Json),
-            }, transaction: tx, cancellationToken: ct));
 
     private static Task AuditAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx, string practiceId, long appointmentId,
