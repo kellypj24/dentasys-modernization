@@ -72,6 +72,51 @@ public sealed class NoteScorerTests
         Assert.Equal(1.0, NoteScorer.Score(visit, Draft() with { ReviewFlags = ["tooth inaudible"] }).Recall);
     }
 
+    private static readonly Visit Toothless = new()
+    {
+        Id = "t2",
+        Transcript = [new("DENTIST", "Final impression taken, temporary bridge placed from eighteen to twenty.")],
+        Expected = new AnswerKey { ProceduresPerformed = [new KeyItem { Keywords = ["impression"] }] },
+    };
+
+    private static ClinicalNoteDraft Impression(string? tooth) => new()
+    {
+        ProceduresPerformed = [new ToothItem { Tooth = tooth, Description = "final impression",
+                                               Evidence = "Final impression taken" }],
+    };
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("18-20")]
+    [InlineData("lower arch")]
+    public void An_item_that_names_no_tooth_may_be_drafted_with_none_or_a_span(string? tooth)
+    {
+        var s = NoteScorer.Score(Toothless, Impression(tooth));
+        Assert.Equal(1.0, s.Recall);
+        Assert.Equal(0, s.ToothErrors);
+    }
+
+    [Fact]
+    public void An_accepted_tooth_matches_and_any_other_single_tooth_does_not()
+    {
+        var sutures = Toothless with
+        {
+            Expected = new AnswerKey { ProceduresPerformed = [new KeyItem { Keywords = ["impression"], AcceptTooth = "19" }] },
+        };
+        Assert.Equal(1.0, NoteScorer.Score(sutures, Impression("19")).Recall);
+        Assert.Equal(1, NoteScorer.Score(sutures, Impression("18")).ToothErrors);
+    }
+
+    [Theory]
+    [InlineData("L")]
+    [InlineData("19")]
+    public void An_item_that_names_no_tooth_drafted_on_one_specific_tooth_is_a_tooth_error(string tooth)
+    {
+        var s = NoteScorer.Score(Toothless, Impression(tooth));
+        Assert.Equal(0.0, s.Recall);
+        Assert.Equal(1, s.ToothErrors);
+    }
+
     [Theory]
     [InlineData("MO", "MO")]
     [InlineData("om", "MO")]

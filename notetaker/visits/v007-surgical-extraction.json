@@ -53,7 +53,8 @@
       {
         "keywords": [
           "suture"
-        ]
+        ],
+        "accept_tooth": "17"
       }
     ],
     "medical_history": [
@@ -77,7 +78,8 @@
           "suture",
           "post-op",
           "follow"
-        ]
+        ],
+        "accept_tooth": "17"
       }
     ]
   }

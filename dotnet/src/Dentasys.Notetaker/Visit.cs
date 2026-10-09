@@ -53,6 +53,14 @@ public sealed record AnswerKey
 public sealed record KeyItem
 {
     public string? Tooth { get; init; }
+
+    /// <summary>
+    /// For an item the visit ties to a tooth without saying its number in the same
+    /// breath -- sutures at the extraction site, a scan for the implant site. With
+    /// <see cref="Tooth"/> null: no tooth, a span, or this tooth all match; any
+    /// other single tooth is still an error.
+    /// </summary>
+    public string? AcceptTooth { get; init; }
     public string? Surfaces { get; init; }
     public IReadOnlyList<string> Keywords { get; init; } = [];
 }
