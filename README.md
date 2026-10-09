@@ -217,7 +217,9 @@ connection because it has nothing to open one with.
 - [x] **Parity harness** — proc vs C#, and legacy stack vs modern stack, across the fleet
 - [x] **Writes** — commands, invariants, domain events, transactional outbox, drainer worker
 - [x] **Write parity** — quantifies the behavior change the hidden trigger was masking
-- [ ] **AI notetaker v1** on the legacy stack, offline-tolerant — design in `docs/NOTETAKER.md`
+- [x] **Notetaker phase 1** — note contract, 30 synthetic visits, eval harness, local + Claude drafters
+- [x] **Notetaker phase 2** — notes service: store, lifecycle, leased job queue, cloud→local fallback, chart outbox that holds until 07.04.00
+- [ ] Notetaker phase 3 — HTTP API, capture agent + spool, review/sign panel in the client
 - [ ] Remaining two procs: `usp_NightlyRecallAndClaims` → worker, `usp_PostLedgerAndAging` → C# domain service
 - [x] **Analytics** — `usp_RptProductionCollection` as the oracle; dbt on DuckDB reads PostgreSQL once and reports off it; report parity across the fleet
 - [x] Azure target in Terraform — Postgres Flexible Server, free-tier SKUs asserted by `terraform test` (`infra/README.md`)
@@ -261,6 +263,8 @@ legacy/              SQL Server. 1997 data model, current engine, defects intact
   02_seed.sql          one practice, synthetic, every row tied to a landmine
   03_seed_fleet.sql    24 databases that disagree with each other
   procs/               the oracles, not dependencies: schedule and production report
+  notes/               DENTASYS_NOTES, the notes service's store
+  upgrades/            07.04.00 CLINICAL_NOTE, installed per practice in its upgrade window
 
 target/              the PostgreSQL side
   01_schema.sql        landing_ / dentasys / harness, and why they are separate
@@ -286,6 +290,8 @@ dotnet/
   src/Dentasys.App/             console UI, renders from either stack
   src/Dentasys.Worker/          drains the outbox; replaces the 2 AM SQL Agent job
   src/Dentasys.Parity/          the classification model and the comparer
+  src/Dentasys.Notetaker*/       note contract, drafters, scorer, eval runner
+  src/Dentasys.Notes/           notes service: store, lifecycle, job queue, chart outbox
   tests/Dentasys.Parity.Tests/  read parity, write parity, and the booking rules
 
 infra/

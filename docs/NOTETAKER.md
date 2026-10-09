@@ -122,6 +122,13 @@ transcription by feeding synthetic speech through the speech step.
 
 ## Six-month plan
 
+The lab builds each row as a phase, against the simulated system, in far less
+time. The months are what a row costs against the real one: their client
+codebase and release train, operatory audio, compliance review, a schema
+release through each customer's upgrade window, and a pilot. The lab takes the
+architecture and failure-handling risk out early so those months go to
+integration.
+
 | Month | Deliverable |
 |---|---|
 | 1 | Note contract, 30+ synthetic visits with answer keys, drafter interface, local drafter, eval harness. Lab only. |
