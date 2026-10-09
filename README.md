@@ -219,17 +219,21 @@ connection because it has nothing to open one with.
 - [x] **Write parity** — quantifies the behavior change the hidden trigger was masking
 - [ ] Remaining three procs and their destinations
 - [ ] Analytics: DuckDB + dbt for the production/collection report, fed from PostgreSQL
-- [ ] AWS: CDK in C#, RDS PostgreSQL, ECS Fargate, DMS, OTel → CloudWatch
+- [x] Azure target in Terraform — Postgres Flexible Server, free-tier SKUs asserted by `terraform test` (`infra/README.md`)
+- [x] Azure apps in Terraform — API scales to zero, outbox worker is a scheduled job (`--once`); images smoke-tested locally
+- [ ] Azure: first real deploy inside the free-account window; run `just migrate` against the cloud target
+- [ ] AWS, if the hybrid path goes there: same Terraform outputs, different provider
 - [ ] Cutover runbook — strangler fig, dual-write, shadow reads, rollback triggers
 
 ## Setup
 
-Needed now: **Docker** and the **.NET 10 SDK**. Needed later, for the AWS work:
-the AWS CLI and Node — the CDK CLI is a Node app even when you author infra in C#.
+Needed now: **Docker**, the **.NET 10 SDK** and **Terraform**. Needed only to
+deploy: the Azure CLI. Read `infra/README.md` before creating an Azure account.
 
 ```bash
 brew install --cask docker
 brew install dotnet          # 10.0 or newer
+brew install terraform       # or hashicorp/tap/terraform
 ```
 
 **Apple Silicon:** there is no ARM64 SQL Server image, and Azure SQL Edge was
@@ -264,6 +268,7 @@ target/              the PostgreSQL side
   export_fleet.sql     SQL Server -> psql COPY stream
 
 dotnet/
+  Dockerfile                    one build, two images: --target api / --target worker
   src/Dentasys.Domain/          rules. No data-access dependency, by construction.
   src/Dentasys.Data.SqlServer/  legacy adapter + the fat-client path
   src/Dentasys.Data.Postgres/   target adapter + the guard rails
@@ -273,6 +278,11 @@ dotnet/
   src/Dentasys.Worker/          drains the outbox; replaces the 2 AM SQL Agent job
   src/Dentasys.Parity/          the classification model and the comparer
   tests/Dentasys.Parity.Tests/  read parity, write parity, and the booking rules
+
+infra/
+  README.md            cost rules: why the lab cannot produce a charge
+  azure/               Terraform: Postgres Flexible Server, Container Apps, firewall, optional budget
+    tests/             terraform test, mocked providers; asserts free-tier SKUs
 
 tests/assert_fleet.sql    invariants the spawned fleet must satisfy
 docs/LANDMINES.md         the 11 planted defects
