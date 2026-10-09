@@ -99,8 +99,15 @@ _practice-ids:
     @docker exec -i {{LEGACY}} /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '{{SA_PASS}}' \
         -C -b -d DENTASYS_FLEET -h -1 -W -Q "SET NOCOUNT ON; SELECT RTRIM(PRAC_ID) FROM FLEET_ROSTER ORDER BY SEQ;"
 
+# The notes service's store, plus release 07.04.00 (CLINICAL_NOTE) at the two
+# practices that have installed it. The other 22 have not had their upgrade window yet.
+notes-setup:
+    @just run legacy/notes/01_notes_store.sql
+    @for p in 001204 001505; do just run legacy/upgrades/07.04.00_clinical_note.sql -d "DENTASYS_$p"; done
+    @echo "DENTASYS_NOTES ready; CLINICAL_NOTE at 001204 001505"
+
 # Build everything from whatever state the server is currently in
-build: schema seed fleet install-procs
+build: schema seed fleet install-procs notes-setup
 
 # Drop every DENTASYS database. Destructive, and only ever touches DENTASYS*.
 reset:
@@ -179,6 +186,18 @@ notetaker-eval MODEL *ARGS:
 notetaker-eval-claude *ARGS:
     @[ -n "${ANTHROPIC_API_KEY:-}" ] || { echo "ANTHROPIC_API_KEY is not set" >&2; exit 1; }
     @dotnet run --project dotnet/src/Dentasys.Notetaker.Eval -- --drafter claude {{ARGS}}
+
+# A few visits through the whole notes service with a real local model and the
+# cloud unreachable on purpose: capture -> local fallback -> sign -> CLINICAL_NOTE.
+# Paced and small (3 visits, ~20 s of GPU); stop any other model run first.
+notes-smoke MODEL="gemma3:4b" *ARGS:
+    @ollama list | grep -q "^{{MODEL}}" || { echo "{{MODEL}} is not pulled -- ollama pull {{MODEL}}" >&2; exit 1; }
+    @! pgrep -f '[D]entasys.Notetaker.Eval|[D]entasys.Notes.Smoke' > /dev/null || { echo "another model run is in progress" >&2; exit 1; }
+    @dotnet run --project dotnet/src/Dentasys.Notes.Smoke -- --model {{MODEL}} {{ARGS}}
+
+# Notes service against DENTASYS_NOTES: lifecycle, disconnects, resync, chart outbox.
+notes-test:
+    @cd dotnet && dotnet test tests/Dentasys.Notes.Tests --nologo -v q
 
 # Scorer and visit-fixture tests. No model, no database; part of `just check`.
 notetaker-test:

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The notes service: store, lifecycle, job queue and chart outbox. Runs in
+       the data center beside the practice databases (docs/NOTETAKER.md). -->
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Dentasys.Notetaker/Dentasys.Notetaker.csproj" />
+  </ItemGroup>
+</Project>
