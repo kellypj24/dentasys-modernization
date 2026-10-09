@@ -1,0 +1,71 @@
+{
+  "id": "v010",
+  "title": "Sore spot under a lower denture",
+  "tags": [
+    "prosthetic",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "My grandson graduated from college on Saturday, I'm so proud."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Congratulations! So tell me about the denture."
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "The lower one rubs on the left side, it's really sore when I chew."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "There's an ulcer on the lower left ridge under the denture flange."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "I'm adjusting the lower denture, relieving the flange over that spot."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Rinse with warm salt water and come back in a week if it's not healing."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "sore",
+      "rubs"
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "ulcer",
+          "sore",
+          "irritation"
+        ]
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "adjust",
+          "relie"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "salt",
+          "rinse",
+          "week",
+          "follow"
+        ]
+      }
+    ],
+    "forbidden": [
+      "grandson",
+      "graduat"
+    ]
+  }
+}

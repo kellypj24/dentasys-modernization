@@ -6,10 +6,14 @@
     <Project Path="src/Dentasys.Data.Postgres/Dentasys.Data.Postgres.csproj" />
     <Project Path="src/Dentasys.Data.SqlServer/Dentasys.Data.SqlServer.csproj" />
     <Project Path="src/Dentasys.Domain/Dentasys.Domain.csproj" />
+    <Project Path="src/Dentasys.Notetaker.Claude/Dentasys.Notetaker.Claude.csproj" />
+    <Project Path="src/Dentasys.Notetaker.Eval/Dentasys.Notetaker.Eval.csproj" />
+    <Project Path="src/Dentasys.Notetaker/Dentasys.Notetaker.csproj" />
     <Project Path="src/Dentasys.Parity/Dentasys.Parity.csproj" />
     <Project Path="src/Dentasys.Worker/Dentasys.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Dentasys.Notetaker.Tests/Dentasys.Notetaker.Tests.csproj" />
     <Project Path="tests/Dentasys.Parity.Tests/Dentasys.Parity.Tests.csproj" />
   </Folder>
 </Solution>

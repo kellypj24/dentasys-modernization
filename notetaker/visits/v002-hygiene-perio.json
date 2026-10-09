@@ -1,0 +1,36 @@
+{
+  "id": "v002",
+  "title": "Hygiene recall with two deep pockets and a new blood pressure medication",
+  "tags": ["hygiene", "perio", "medical-history"],
+  "transcript": [
+    {"speaker": "HYGIENIST", "text": "Anything new with your health since your last cleaning?"},
+    {"speaker": "PATIENT", "text": "My doctor started me on lisinopril for blood pressure in the spring."},
+    {"speaker": "HYGIENIST", "text": "Okay, I'll update that. Any allergies change?"},
+    {"speaker": "PATIENT", "text": "No, still just penicillin."},
+    {"speaker": "HYGIENIST", "text": "Starting the probing. Upper right. Number three, three two three, buccal. Lingual three three five."},
+    {"speaker": "HYGIENIST", "text": "Number three distolingual is five with bleeding."},
+    {"speaker": "HYGIENIST", "text": "Moving on, everything twos and threes until number fourteen. Fourteen mesiobuccal is a four."},
+    {"speaker": "PATIENT", "text": "Is that bad?"},
+    {"speaker": "HYGIENIST", "text": "It's mild. We'll keep an eye on it. Doing a regular adult cleaning today, prophy and polish."},
+    {"speaker": "DENTIST", "text": "I did her periodic exam, looks good otherwise, no new decay. Let's see her back in six months for her next cleaning."},
+    {"speaker": "PATIENT", "text": "Sounds good. My daughter's wedding is in June so I want my teeth looking great."}
+  ],
+  "expected": {
+    "perio": [
+      {"tooth": "3", "depth_mm": 5},
+      {"tooth": "14", "depth_mm": 4}
+    ],
+    "medical_history": [
+      {"keywords": ["lisinopril"]},
+      {"keywords": ["penicillin"]}
+    ],
+    "procedures_performed": [
+      {"keywords": ["prophy", "prophylaxis", "cleaning"]},
+      {"keywords": ["exam", "evaluation"]}
+    ],
+    "plan": [
+      {"keywords": ["six months", "6 months", "recall", "6-month", "six-month", "next cleaning", "return"]}
+    ],
+    "forbidden": ["wedding"]
+  }
+}

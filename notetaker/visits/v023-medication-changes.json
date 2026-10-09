@@ -1,0 +1,87 @@
+{
+  "id": "v023",
+  "title": "Hygiene visit with a stopped bisphosphonate and a new diabetes drug",
+  "tags": [
+    "hygiene",
+    "medical-history",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "HYGIENIST",
+      "text": "How was the trip to see your sister in Phoenix?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "Hot! Anyway, I stopped taking Fosamax in January, my doctor took me off it."
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "And I started metformin last month."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Thanks, those both matter for us. I'll update your history."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Cleaning done, light plaque on the lower front teeth."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Exam is fine. Back in six months."
+    }
+  ],
+  "expected": {
+    "medical_history": [
+      {
+        "keywords": [
+          "fosamax",
+          "alendronate",
+          "bisphosphonate"
+        ]
+      },
+      {
+        "keywords": [
+          "metformin"
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "plaque"
+        ]
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "cleaning",
+          "prophy"
+        ]
+      },
+      {
+        "keywords": [
+          "exam",
+          "evaluation"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "six months",
+          "6 months",
+          "recall",
+          "6-month",
+          "six-month"
+        ]
+      }
+    ],
+    "forbidden": [
+      "phoenix",
+      "sister"
+    ]
+  }
+}

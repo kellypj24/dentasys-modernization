@@ -1,0 +1,81 @@
+{
+  "id": "v026",
+  "title": "Three-unit bridge prep for a missing lower molar",
+  "tags": [
+    "restorative",
+    "prosthetic",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "Did you watch the Longhorns game?"
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "I did, what a finish. Okay. Nineteen is missing, so we're prepping eighteen and twenty for a three-unit bridge."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Prep on eighteen done. Prep on twenty done."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Final impression taken, temporary bridge placed from eighteen to twenty."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "We'll cement the final bridge in three weeks."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "missing"
+        ],
+        "tooth": "19"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "prep",
+          "preparation"
+        ],
+        "tooth": "18"
+      },
+      {
+        "keywords": [
+          "prep",
+          "preparation"
+        ],
+        "tooth": "20"
+      },
+      {
+        "keywords": [
+          "impression"
+        ]
+      },
+      {
+        "keywords": [
+          "temporary",
+          "temp"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "bridge",
+          "cement",
+          "seat"
+        ]
+      }
+    ],
+    "forbidden": [
+      "longhorns",
+      "game"
+    ]
+  }
+}

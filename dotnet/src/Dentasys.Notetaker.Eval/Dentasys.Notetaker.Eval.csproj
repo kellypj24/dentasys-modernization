@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>notetaker-eval</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Dentasys.Notetaker/Dentasys.Notetaker.csproj" />
+    <ProjectReference Include="../Dentasys.Notetaker.Claude/Dentasys.Notetaker.Claude.csproj" />
+  </ItemGroup>
+</Project>

@@ -166,6 +166,25 @@ report PRACTICE FROM TO:
         AND entry_date BETWEEN '{{FROM}}' AND '{{TO}}' GROUP BY ALL ORDER BY ALL"
 
 # ---------------------------------------------------------------------------
+# notetaker (docs/NOTETAKER.md)
+# ---------------------------------------------------------------------------
+
+# Draft all synthetic visits with a local model and score them, e.g. just notetaker-eval gemma3:4b --pause 10
+# One run at a time; stop the containers first (`just down`) to give the model the memory.
+notetaker-eval MODEL *ARGS:
+    @ollama list | grep -q "^{{MODEL}}" || { echo "{{MODEL}} is not pulled -- ollama pull {{MODEL}}" >&2; exit 1; }
+    @dotnet run --project dotnet/src/Dentasys.Notetaker.Eval -- --drafter ollama --model {{MODEL}} {{ARGS}}
+
+# Same, with Claude via the Anthropic API (synthetic visits only; costs money). Needs ANTHROPIC_API_KEY.
+notetaker-eval-claude *ARGS:
+    @[ -n "${ANTHROPIC_API_KEY:-}" ] || { echo "ANTHROPIC_API_KEY is not set" >&2; exit 1; }
+    @dotnet run --project dotnet/src/Dentasys.Notetaker.Eval -- --drafter claude {{ARGS}}
+
+# Scorer and visit-fixture tests. No model, no database; part of `just check`.
+notetaker-test:
+    @cd dotnet && dotnet test tests/Dentasys.Notetaker.Tests --nologo -v q
+
+# ---------------------------------------------------------------------------
 # the application
 # ---------------------------------------------------------------------------
 
@@ -360,4 +379,4 @@ verify:
     @echo ""
 
 # The pre-push gauntlet: infra tests, rebuild both sides from source, build analytics, then assert. Run before pushing.
-check: infra-check rebuild test migrate analytics parity
+check: infra-check notetaker-test rebuild test migrate analytics parity

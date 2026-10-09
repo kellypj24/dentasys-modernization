@@ -1,0 +1,40 @@
+{
+  "id": "v016",
+  "title": "Tooth number inaudible: the note must flag it, not guess",
+  "tags": [
+    "ambiguity"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "Let's look at the upper left."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Number [inaudible] has a crack line on the distal marginal ridge, keep an eye on it."
+    },
+    {
+      "speaker": "ASSISTANT",
+      "text": "Sorry, which tooth?"
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "[crosstalk] ...the one next to the crown."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Otherwise everything looks good today."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "crack",
+          "fracture"
+        ]
+      }
+    ],
+    "review_flag_required": true
+  }
+}

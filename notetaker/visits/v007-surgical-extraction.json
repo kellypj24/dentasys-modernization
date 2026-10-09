@@ -1,0 +1,84 @@
+{
+  "id": "v007",
+  "title": "Surgical extraction of an impacted lower wisdom tooth, patient on Eliquis",
+  "tags": [
+    "surgery",
+    "medical-history"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "Before we start, any changes to your medications?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "I'm on Eliquis for atrial fibrillation. My cardiologist said it was okay to hold it yesterday."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Good, thanks. Number seventeen is partially impacted and the gum keeps getting infected around it."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Raising a flap, sectioning the tooth. Surgical extraction of seventeen complete."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Placing two sutures and gauze."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Restart the Eliquis tomorrow morning, and come back in one week to remove the sutures."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "impact",
+          "pericoronitis",
+          "infect"
+        ],
+        "tooth": "17"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "extraction",
+          "extracted"
+        ],
+        "tooth": "17"
+      },
+      {
+        "keywords": [
+          "suture"
+        ]
+      }
+    ],
+    "medical_history": [
+      {
+        "keywords": [
+          "eliquis",
+          "apixaban"
+        ]
+      },
+      {
+        "keywords": [
+          "atrial fibrillation",
+          "afib",
+          "a-fib"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "suture",
+          "post-op",
+          "follow"
+        ]
+      }
+    ]
+  }
+}

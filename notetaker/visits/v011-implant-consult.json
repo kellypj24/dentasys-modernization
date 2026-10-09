@@ -1,0 +1,78 @@
+{
+  "id": "v011",
+  "title": "Implant consult for a missing lower molar, diabetic patient",
+  "tags": [
+    "implant",
+    "medical-history",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "We just got back from a cruise to Alaska."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Sounds amazing. So number thirty was extracted about a year ago."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Any health changes?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "My diabetes is better, my last A1c was six point eight. I take metformin."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Good. The bone looks adequate on the x-ray but I want a CBCT scan before we plan the implant for thirty."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "If the scan looks good we'll place the implant in thirty next month."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "missing",
+          "extracted",
+          "edentulous"
+        ],
+        "tooth": "30"
+      }
+    ],
+    "medical_history": [
+      {
+        "keywords": [
+          "diabet"
+        ]
+      },
+      {
+        "keywords": [
+          "metformin"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "CBCT",
+          "cone beam",
+          "scan"
+        ]
+      },
+      {
+        "keywords": [
+          "implant"
+        ],
+        "tooth": "30"
+      }
+    ],
+    "forbidden": [
+      "cruise",
+      "alaska"
+    ]
+  }
+}

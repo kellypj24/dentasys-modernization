@@ -1,0 +1,90 @@
+{
+  "id": "v003",
+  "title": "Crown prep on an upper molar with a temporary",
+  "tags": [
+    "restorative",
+    "crown",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "How's the fantasy football league going?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "Terrible, I'm in last place."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Ha. Okay, today we're prepping number three for the crown we talked about, the old filling is cracked through the distal."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Taking off the old amalgam on three. There's a fracture line running mesial to distal under it."
+    },
+    {
+      "speaker": "ASSISTANT",
+      "text": "Impression material ready."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Prep is done. Taking the final impression for a porcelain crown on number three."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Placing the temporary crown with temp cement."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "The lab will have it back in two weeks, we'll seat the final crown then."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "fracture",
+          "crack"
+        ],
+        "tooth": "3"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "prep",
+          "preparation"
+        ],
+        "tooth": "3"
+      },
+      {
+        "keywords": [
+          "impression"
+        ],
+        "tooth": "3"
+      },
+      {
+        "keywords": [
+          "temporary",
+          "temp"
+        ],
+        "tooth": "3"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "seat",
+          "crown",
+          "cement"
+        ],
+        "tooth": "3"
+      }
+    ],
+    "forbidden": [
+      "fantasy football",
+      "last place"
+    ]
+  }
+}

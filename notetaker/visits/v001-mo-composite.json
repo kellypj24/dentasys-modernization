@@ -1,0 +1,30 @@
+{
+  "id": "v001",
+  "title": "Two-surface composite on a lower molar, with weekend small talk",
+  "tags": ["restorative", "small-talk"],
+  "transcript": [
+    {"speaker": "DENTIST", "text": "Hi Mark, how was the lake this weekend?"},
+    {"speaker": "PATIENT", "text": "Great, we finally got the boat out to Lake Travis."},
+    {"speaker": "DENTIST", "text": "Nice. So last time we saw decay on the lower left, let's take care of that today."},
+    {"speaker": "DENTIST", "text": "Okay, numbing is in. Isolating number nineteen."},
+    {"speaker": "DENTIST", "text": "Decay on nineteen is mesial and occlusal, it's into dentin but not near the nerve."},
+    {"speaker": "ASSISTANT", "text": "Shade A2?"},
+    {"speaker": "DENTIST", "text": "A2 is good. Placing a mesial occlusal composite on nineteen."},
+    {"speaker": "DENTIST", "text": "Checking the bite. Bite feels even?"},
+    {"speaker": "PATIENT", "text": "Feels fine."},
+    {"speaker": "DENTIST", "text": "I also noticed number thirty has a small dark spot on the occlusal, let's watch that and recheck in six months."}
+  ],
+  "expected": {
+    "findings": [
+      {"tooth": "19", "surfaces": "MO", "keywords": ["decay", "caries", "carious"]},
+      {"tooth": "30", "surfaces": "O", "keywords": ["spot", "stain", "watch", "monitor", "dark"]}
+    ],
+    "procedures_performed": [
+      {"tooth": "19", "surfaces": "MO", "keywords": ["composite", "resin", "filling", "restoration"]}
+    ],
+    "plan": [
+      {"tooth": "30", "keywords": ["recheck", "monitor", "watch", "re-evaluate", "reevaluate", "six months", "6 months"]}
+    ],
+    "forbidden": ["lake travis", "boat"]
+  }
+}

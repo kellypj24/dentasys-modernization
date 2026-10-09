@@ -1,0 +1,107 @@
+{
+  "id": "v005",
+  "title": "Child recall: decay on primary molars, sealants on first molars",
+  "tags": [
+    "pediatric",
+    "primary-teeth",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "Hi Emma! Did you score a goal at soccer this week?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "Two goals!"
+    },
+    {
+      "speaker": "PARENT",
+      "text": "She won't stop talking about it."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Let's count those teeth. Okay, letter K has a cavity on the distal and occlusal."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "And letter T has a small cavity on the occlusal."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Her six-year molars are in. I'd like to put sealants on number three and number fourteen today."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Sealants placed on three and fourteen. Doing fluoride varnish now."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Let's schedule fillings for K and T in the next couple of weeks."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "cavity",
+          "decay",
+          "caries"
+        ],
+        "tooth": "K",
+        "surfaces": "DO"
+      },
+      {
+        "keywords": [
+          "cavity",
+          "decay",
+          "caries"
+        ],
+        "tooth": "T",
+        "surfaces": "O"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "sealant"
+        ],
+        "tooth": "3"
+      },
+      {
+        "keywords": [
+          "sealant"
+        ],
+        "tooth": "14"
+      },
+      {
+        "keywords": [
+          "fluoride",
+          "varnish"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "filling",
+          "restoration",
+          "composite"
+        ],
+        "tooth": "K"
+      },
+      {
+        "keywords": [
+          "filling",
+          "restoration",
+          "composite"
+        ],
+        "tooth": "T"
+      }
+    ],
+    "forbidden": [
+      "soccer",
+      "goal"
+    ]
+  }
+}

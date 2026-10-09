@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The note contract, the drafter seam and the scorer. No data access and no
+       cloud SDK: a drafter is anything that turns a transcript into a draft. -->
+</Project>

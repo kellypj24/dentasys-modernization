@@ -1,0 +1,51 @@
+{
+  "id": "v018",
+  "title": "Whitening consult, no clinical findings",
+  "tags": [
+    "cosmetic",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "I want my teeth whiter for my wedding photos in May."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Sure. Your enamel is healthy and there are no fillings on the front teeth that would show."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Let's take impressions for take-home whitening trays."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Wear them an hour a day for two weeks."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "whit"
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "impression"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "whitening",
+          "bleach",
+          "tray"
+        ]
+      }
+    ],
+    "forbidden": [
+      "wedding",
+      "photos"
+    ]
+  }
+}

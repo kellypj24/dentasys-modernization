@@ -1,0 +1,63 @@
+{
+  "id": "v009",
+  "title": "Fractured buccal cusp on a premolar, temporary bonding",
+  "tags": [
+    "restorative",
+    "emergency"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "I bit down on a popcorn kernel last night and something broke."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Yes, number twelve has lost the buccal cusp. No pain to cold, nerve looks healthy."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "I'll smooth it and do a temporary bonding on twelve today so it doesn't cut your cheek."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Long term number twelve needs a crown. Let's book that for next month."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "broke",
+      "fracture",
+      "popcorn"
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "fracture",
+          "broken",
+          "lost",
+          "cusp"
+        ],
+        "tooth": "12",
+        "surfaces": "B"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "bond",
+          "temporary",
+          "smooth"
+        ],
+        "tooth": "12"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "crown"
+        ],
+        "tooth": "12"
+      }
+    ]
+  }
+}

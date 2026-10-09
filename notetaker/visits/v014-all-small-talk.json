@@ -1,0 +1,72 @@
+{
+  "id": "v014",
+  "title": "Routine recall that is almost entirely small talk",
+  "tags": [
+    "hygiene",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "HYGIENIST",
+      "text": "Did you end up buying that house in Round Rock?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "We closed on Friday! The kitchen needs work but we love it."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "That's so exciting. Are you doing the remodel yourselves?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "My husband thinks he can. We'll see. He watched a lot of YouTube."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Okay, cleaning is done, everything looks healthy, no bleeding."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Exam is clear, no decay. See you in six months."
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "Thanks! Come see the house sometime, ha."
+    }
+  ],
+  "expected": {
+    "procedures_performed": [
+      {
+        "keywords": [
+          "cleaning",
+          "prophy"
+        ]
+      },
+      {
+        "keywords": [
+          "exam",
+          "evaluation"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "six months",
+          "6 months",
+          "recall",
+          "6-month",
+          "six-month"
+        ]
+      }
+    ],
+    "forbidden": [
+      "round rock",
+      "kitchen",
+      "remodel",
+      "youtube",
+      "husband"
+    ]
+  }
+}

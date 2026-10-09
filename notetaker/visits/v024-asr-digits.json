@@ -1,0 +1,69 @@
+{
+  "id": "v024",
+  "title": "Transcript with digits and abbreviations, as speech-to-text emits them",
+  "tags": [
+    "restorative",
+    "asr-style"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "ok #29 has decay distal occlusal, DO, moderate."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "doing a DO composite on 29 today, shade A3."
+    },
+    {
+      "speaker": "ASSISTANT",
+      "text": "matrix band on 29"
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "29 DO done. also #20 has a small buccal lesion, plan a B composite on 20 next visit."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "decay",
+          "caries"
+        ],
+        "tooth": "29",
+        "surfaces": "DO"
+      },
+      {
+        "keywords": [
+          "lesion",
+          "decay",
+          "caries"
+        ],
+        "tooth": "20",
+        "surfaces": "B"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "composite",
+          "filling",
+          "restoration"
+        ],
+        "tooth": "29",
+        "surfaces": "DO"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "composite",
+          "filling",
+          "restoration"
+        ],
+        "tooth": "20",
+        "surfaces": "B"
+      }
+    ]
+  }
+}

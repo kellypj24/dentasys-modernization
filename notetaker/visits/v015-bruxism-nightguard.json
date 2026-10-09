@@ -1,0 +1,67 @@
+{
+  "id": "v015",
+  "title": "Worn incisal edges from grinding, night guard",
+  "tags": [
+    "occlusion"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "My wife says I grind my teeth at night."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "I can see it. Numbers eight and nine have flattened incisal edges, that's attrition from grinding."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Your jaw muscles are tender too."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Taking impressions today for a night guard. We'll deliver it in about ten days."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "grind"
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "attrition",
+          "wear",
+          "flatten"
+        ],
+        "tooth": "8",
+        "surfaces": "I"
+      },
+      {
+        "keywords": [
+          "attrition",
+          "wear",
+          "flatten"
+        ],
+        "tooth": "9",
+        "surfaces": "I"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "impression"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "night guard",
+          "nightguard",
+          "occlusal guard",
+          "deliver"
+        ]
+      }
+    ]
+  }
+}

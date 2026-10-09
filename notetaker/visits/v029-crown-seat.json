@@ -1,0 +1,57 @@
+{
+  "id": "v029",
+  "title": "Seating the final crown from a previous prep",
+  "tags": [
+    "restorative",
+    "crown",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "My dog had puppies last week, nine of them."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Nine! Okay, removing the temporary on number three."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Trying in the final crown on three, margins look good, contacts are good."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Cementing the crown on three with resin cement. Adjusting the bite a little."
+    }
+  ],
+  "expected": {
+    "procedures_performed": [
+      {
+        "keywords": [
+          "temporary",
+          "temp"
+        ],
+        "tooth": "3"
+      },
+      {
+        "keywords": [
+          "cement",
+          "seat",
+          "crown"
+        ],
+        "tooth": "3"
+      },
+      {
+        "keywords": [
+          "adjust",
+          "occlus",
+          "bite"
+        ]
+      }
+    ],
+    "forbidden": [
+      "puppies",
+      "dog"
+    ]
+  }
+}

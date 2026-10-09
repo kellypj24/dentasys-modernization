@@ -1,0 +1,115 @@
+{
+  "id": "v013",
+  "title": "New patient comprehensive exam with several findings",
+  "tags": [
+    "exam",
+    "restorative",
+    "medical-history"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "Welcome. Any allergies?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "Latex. I break out in hives."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Noted, we'll use nitrile gloves. We took a full mouth series of x-rays."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Comprehensive exam. Number two has decay on the distal and occlusal."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Number eighteen, mesial occlusal distal decay, that one's bigger."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Number fourteen has an existing crown that looks fine. Number thirty-one is missing."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Plan is a DO filling on two and an MOD filling on eighteen, eighteen first since it's larger."
+    }
+  ],
+  "expected": {
+    "medical_history": [
+      {
+        "keywords": [
+          "latex"
+        ]
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "comprehensive",
+          "exam",
+          "evaluation"
+        ]
+      },
+      {
+        "keywords": [
+          "x-ray",
+          "radiograph",
+          "FMX",
+          "full mouth"
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "decay",
+          "caries"
+        ],
+        "tooth": "2",
+        "surfaces": "DO"
+      },
+      {
+        "keywords": [
+          "decay",
+          "caries"
+        ],
+        "tooth": "18",
+        "surfaces": "MOD"
+      },
+      {
+        "keywords": [
+          "crown"
+        ],
+        "tooth": "14"
+      },
+      {
+        "keywords": [
+          "missing"
+        ],
+        "tooth": "31"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "filling",
+          "composite",
+          "restoration"
+        ],
+        "tooth": "2",
+        "surfaces": "DO"
+      },
+      {
+        "keywords": [
+          "filling",
+          "composite",
+          "restoration"
+        ],
+        "tooth": "18",
+        "surfaces": "MOD"
+      }
+    ]
+  }
+}

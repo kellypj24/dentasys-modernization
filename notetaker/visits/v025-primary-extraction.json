@@ -1,0 +1,47 @@
+{
+  "id": "v025",
+  "title": "Extraction of a loose primary molar",
+  "tags": [
+    "pediatric",
+    "primary-teeth",
+    "surgery"
+  ],
+  "transcript": [
+    {
+      "speaker": "PARENT",
+      "text": "It's been wiggly for weeks and the big tooth is coming in behind it."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Yes, letter S is very loose and the permanent premolar is erupting."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Topical only, removing S. Extraction of S is done, there's the whole root."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Bite on the gauze for fifteen minutes."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "loose",
+          "mobil"
+        ],
+        "tooth": "S"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "extract",
+          "removed"
+        ],
+        "tooth": "S"
+      }
+    ]
+  }
+}

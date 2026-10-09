@@ -1,0 +1,50 @@
+{
+  "id": "v027",
+  "title": "Recurrent decay under an old amalgam, replaced with composite",
+  "tags": [
+    "restorative"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "The old silver filling on fourteen is leaking, there's recurrent decay under the margins."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "It's mesial occlusal distal. Removing the amalgam on fourteen."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Decay removed, placing an MOD composite on fourteen."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "If that tooth gets sensitive, call us, it was deep."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "recurrent",
+          "decay",
+          "caries",
+          "leak"
+        ],
+        "tooth": "14",
+        "surfaces": "MOD"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "composite",
+          "filling",
+          "restoration"
+        ],
+        "tooth": "14",
+        "surfaces": "MOD"
+      }
+    ]
+  }
+}

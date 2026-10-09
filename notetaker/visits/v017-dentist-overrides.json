@@ -1,0 +1,65 @@
+{
+  "id": "v017",
+  "title": "Hygienist suggests watching a tooth, dentist decides to restore it",
+  "tags": [
+    "restorative",
+    "disagreement"
+  ],
+  "transcript": [
+    {
+      "speaker": "HYGIENIST",
+      "text": "Number four has a little shadow on the distal, I'd just watch it."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Let me see the bitewing. No, that's through the enamel. Four needs a filling, distal occlusal."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Okay, I'll schedule a DO on four."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Cleaning and exam done today otherwise."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "decay",
+          "caries",
+          "shadow",
+          "lesion"
+        ],
+        "tooth": "4",
+        "surfaces": "D"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "cleaning",
+          "prophy"
+        ]
+      },
+      {
+        "keywords": [
+          "exam",
+          "evaluation"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "filling",
+          "composite",
+          "restoration"
+        ],
+        "tooth": "4",
+        "surfaces": "DO"
+      }
+    ]
+  }
+}

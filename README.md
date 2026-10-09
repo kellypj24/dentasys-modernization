@@ -217,6 +217,7 @@ connection because it has nothing to open one with.
 - [x] **Parity harness** — proc vs C#, and legacy stack vs modern stack, across the fleet
 - [x] **Writes** — commands, invariants, domain events, transactional outbox, drainer worker
 - [x] **Write parity** — quantifies the behavior change the hidden trigger was masking
+- [ ] **AI notetaker v1** on the legacy stack, offline-tolerant — design in `docs/NOTETAKER.md`
 - [ ] Remaining two procs: `usp_NightlyRecallAndClaims` → worker, `usp_PostLedgerAndAging` → C# domain service
 - [x] **Analytics** — `usp_RptProductionCollection` as the oracle; dbt on DuckDB reads PostgreSQL once and reports off it; report parity across the fleet
 - [x] Azure target in Terraform — Postgres Flexible Server, free-tier SKUs asserted by `terraform test` (`infra/README.md`)
@@ -269,6 +270,8 @@ target/              the PostgreSQL side
   05_write_model.sql   outbox, audit, and the constraints 1997 never had
   export_fleet.sql     SQL Server -> psql COPY stream
 
+notetaker/            synthetic visits + eval harness for the ambient notetaker
+
 analytics/            dbt on DuckDB. Reads PostgreSQL read-only, once per build
   models/staging/      copies of ledger_entry / procedure_code; codes upper-cased (#3)
   models/marts/        fct_production_collection_daily -- the report, any date range
@@ -292,6 +295,7 @@ infra/
 
 tests/assert_fleet.sql    invariants the spawned fleet must satisfy
 docs/LANDMINES.md         the 11 planted defects
+docs/NOTETAKER.md         ambient notetaker v1: topology, offline/resync, six-month plan
 docker-compose.yml
 justfile
 ```
