@@ -10,11 +10,13 @@ public sealed record NoteQueueItem(Guid NoteId, int PatientId, int? ApptId, stri
 public sealed record ReviewNote(Guid NoteId, string PracticeId, string State, int? Version, string? Source,
                                 bool IsLocalDraft, ClinicalNoteDraft? Draft, string? Text, int UnappliedDrafts);
 
-public enum SignStatus { Signed, ChangedSinceOpened, NeedsLocalDraftAcknowledgement, NotSignable, NotFound }
+public enum SignStatus { Signed, ChangedSinceOpened, NeedsLocalDraftAcknowledgement, NotSignable, NotYourNote, NotFound }
 
 /// <summary>
 /// The review screen's view of the notes service. HTTP only: like the schedule,
-/// the workstation never learns where the notes are stored.
+/// the workstation never learns where the notes are stored. The HttpClient
+/// carries the signed-in clinician's token, which is the only identity the
+/// service believes.
 /// </summary>
 public sealed class NotesApiClient(HttpClient http)
 {
@@ -35,11 +37,10 @@ public sealed class NotesApiClient(HttpClient http)
     /// must be the provider's own answer to "this draft came from the local model"
     /// -- never defaulted to true by the screen.
     /// </summary>
-    public async Task<SignStatus> SignAsync(Guid noteId, int version, string actor, bool acknowledgedLocalDraft,
+    public async Task<SignStatus> SignAsync(Guid noteId, int version, bool acknowledgedLocalDraft,
                                             CancellationToken ct = default)
     {
-        var r = await http.PostAsJsonAsync($"notes/{noteId}/sign",
-            new { version, actor, acknowledgedLocalDraft }, ct);
+        var r = await http.PostAsJsonAsync($"notes/{noteId}/sign", new { version, acknowledgedLocalDraft }, ct);
         if (r.IsSuccessStatusCode) return SignStatus.Signed;
 
         var body = await r.Content.ReadAsStringAsync(ct);
@@ -48,6 +49,7 @@ public sealed class NotesApiClient(HttpClient http)
             HttpStatusCode.Conflict => SignStatus.ChangedSinceOpened,
             HttpStatusCode.UnprocessableEntity when body.Contains("local fallback") => SignStatus.NeedsLocalDraftAcknowledgement,
             HttpStatusCode.UnprocessableEntity => SignStatus.NotSignable,
+            HttpStatusCode.Forbidden => SignStatus.NotYourNote,
             _ => SignStatus.NotFound,
         };
     }

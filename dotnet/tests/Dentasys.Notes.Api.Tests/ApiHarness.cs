@@ -63,6 +63,7 @@ public sealed class NotesApiHost : IDisposable
         };
         Factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b
             .UseSetting("Notes:Workers", "false")
+            .UseSetting("Notes:Auth:LabSigningKey", Key)
             .ConfigureServices(s =>
             {
                 s.AddSingleton(Options);
@@ -70,8 +71,26 @@ public sealed class NotesApiHost : IDisposable
             }));
     }
 
+    public const string Key = "lab-only-signing-key-for-tests-0123456789";
+
     public HttpClient Http(params DelegatingHandler[] handlers) => Factory.CreateDefaultClient(handlers);
-    public NotesApiClient Review() => new(Http());
+
+    /// <summary>A workstation's capture agent at <paramref name="practice"/>.</summary>
+    public HttpClient AgentHttp(string practice = Practice, params DelegatingHandler[] handlers) =>
+        WithToken(Http(handlers), Dentasys.Notes.Api.Auth.IssueLabToken(Key, $"ws-{practice}-op1", "capture_agent", practice));
+
+    /// <summary>A signed-in clinician.</summary>
+    public HttpClient ClinicianHttp(string sub = "dr.lee", string prov = "DDS1", string practice = Practice) =>
+        WithToken(Http(), Dentasys.Notes.Api.Auth.IssueLabToken(Key, sub, "clinician", practice, prov));
+
+    public NotesApiClient Review(string sub = "dr.lee", string prov = "DDS1", string practice = Practice) =>
+        new(ClinicianHttp(sub, prov, practice));
+
+    private static HttpClient WithToken(HttpClient http, string token)
+    {
+        http.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        return http;
+    }
     public T Service<T>() where T : notnull => Factory.Services.GetRequiredService<T>();
 
     public async Task ProcessAsync()
@@ -84,6 +103,12 @@ public sealed class NotesApiHost : IDisposable
     {
         using var c = new SqlConnection(Options.NotesConnectionString);
         return c.ExecuteScalar<int>(sql, args);
+    }
+
+    public string ChartSigner(Guid noteId)
+    {
+        using var c = new SqlConnection(new SqlConnectionStringBuilder(Server) { InitialCatalog = $"DENTASYS_{Practice}" }.ConnectionString);
+        return c.ExecuteScalar<string>("SELECT SIGNED_BY FROM CLINICAL_NOTE WHERE NOTE_ID = @noteId", new { noteId })!;
     }
 
     public int ChartCount(Guid noteId)
@@ -103,7 +128,8 @@ public sealed class NotesApiHost : IDisposable
     public static Guid Record(Spool spool, IReadOnlyList<TranscriptLine> transcript, int patientId = 41701)
     {
         var id = Guid.NewGuid();
-        spool.Start(new CaptureManifest(id, Practice, patientId, null, "DDS1", ConsentRecorded: true, ChunkCount: null));
+        spool.Start(new CaptureManifest(id, Practice, patientId, null, "DDS1", ConsentRecorded: true,
+                                        AudioFormat: FixtureTranscriber.Format, ChunkCount: null));
         var chunks = FixtureTranscriber.ToChunks(transcript, chunkBytes: 64);
         for (var i = 0; i < chunks.Count; i++) spool.AppendChunk(id, i, chunks[i]);
         spool.Finish(id, chunks.Count);

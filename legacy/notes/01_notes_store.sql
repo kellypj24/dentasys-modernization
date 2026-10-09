@@ -41,6 +41,7 @@ CREATE TABLE notes.capture (
     patient_id    INT               NOT NULL,
     appt_id       INT               NULL,
     provider_cd   CHAR(4)           NOT NULL,
+    audio_format  VARCHAR(80)       NOT NULL, -- declared by the agent; checked against the transcriber
     started_at    DATETIMEOFFSET(3) NOT NULL,
     chunk_count   INT               NULL      -- known once the agent says it is done
 );
@@ -63,7 +64,7 @@ CREATE TABLE notes.note (
     provider_cd     CHAR(4)           NOT NULL,
     state           VARCHAR(20)       NOT NULL,
     current_version INT               NULL,
-    transcript      NVARCHAR(MAX)     NULL,
+    transcript      NVARCHAR(MAX)     NULL,     -- Transcription JSON: diarized segments with confidence
     updated_at      DATETIMEOFFSET(3) NOT NULL,
     CONSTRAINT ck_note_state CHECK (state IN
         ('awaiting_audio', 'transcribing', 'drafting', 'drafted', 'in_review', 'signed', 'charted'))

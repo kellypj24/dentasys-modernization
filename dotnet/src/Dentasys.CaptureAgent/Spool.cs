@@ -7,7 +7,7 @@ namespace Dentasys.CaptureAgent;
 /// <summary>What the agent knows about a capture before any server has heard of it.</summary>
 public sealed record CaptureManifest(
     Guid CaptureId, string PracticeId, int PatientId, int? ApptId, string ProviderCode,
-    bool ConsentRecorded, int? ChunkCount);
+    bool ConsentRecorded, string AudioFormat, int? ChunkCount);
 
 /// <summary>
 /// Audio waiting to leave the workstation, encrypted at rest.

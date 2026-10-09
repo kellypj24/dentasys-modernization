@@ -22,6 +22,9 @@ public sealed class NotesOptions
     /// </summary>
     public TimeSpan ChartHold { get; init; } = TimeSpan.FromHours(6);
 
+    /// <summary>Audio formats captures may declare: the transcriber's, set where the service is composed.</summary>
+    public IReadOnlyCollection<string> AudioFormats { get; init; } = [FixtureTranscriber.Format];
+
     public TimeSpan RetryDelay(int attempts) =>
         TimeSpan.FromTicks(Math.Min(RetryCap.Ticks, RetryBase.Ticks * (1L << Math.Clamp(attempts - 1, 0, 20))));
 }

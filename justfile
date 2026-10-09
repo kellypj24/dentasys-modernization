@@ -195,21 +195,34 @@ notes-smoke MODEL="gemma3:4b" *ARGS:
     @! pgrep -f '[D]entasys.Notetaker.Eval|[D]entasys.Notes.Smoke' > /dev/null || { echo "another model run is in progress" >&2; exit 1; }
     @dotnet run --project dotnet/src/Dentasys.Notes.Smoke -- --model {{MODEL}} {{ARGS}}
 
+# Lab-only token signing key. Like the SA password above: fine for a lab on one
+# laptop, never a deployment, which authenticates against Notes:Auth:Authority.
+NOTES_LAB_KEY := "dentasys-lab-only-signing-key-0123456789"
+
 # The notes service: API on :5181 plus the job and chart workers. CLOUD/LOCAL are
 # drafter specs (claude[:model] | ollama:model | none). The default drafts with a
 # local model only, as if the cloud were unreachable.
 notes-api CLOUD="none" LOCAL="ollama:gemma3:4b":
     @cd dotnet && ASPNETCORE_URLS=http://localhost:5181 Notes__CloudDrafter={{CLOUD}} Notes__LocalDrafter={{LOCAL}} \
-        dotnet run --project src/Dentasys.Notes.Api
+        Notes__Auth__LabSigningKey='{{NOTES_LAB_KEY}}' dotnet run --project src/Dentasys.Notes.Api
+
+# Mint a lab token, e.g. just notes-token clinician 001204 dr.lee DDS1 | just notes-token capture_agent 001204 ws-op1
+notes-token ROLE PRACTICE SUB PROV="":
+    @cd dotnet && Notes__Auth__LabSigningKey='{{NOTES_LAB_KEY}}' dotnet run --project src/Dentasys.Notes.Api -- \
+        issue-token --role {{ROLE}} --practice {{PRACTICE}} --sub {{SUB}} --prov '{{PROV}}'
 
 # Workstation side: record a synthetic visit into the encrypted spool, then upload it
+# with that workstation's own token
 capture VISIT PRACTICE="001204" PATIENT="41701":
     @cd dotnet && dotnet run --project src/Dentasys.CaptureAgent -- record {{VISIT}} --practice {{PRACTICE}} --patient {{PATIENT}}
-    @cd dotnet && dotnet run --project src/Dentasys.CaptureAgent -- drain
+    @cd dotnet && DENTASYS_AGENT_TOKEN="$(just notes-token capture_agent {{PRACTICE}} ws-{{PRACTICE}}-op1)" \
+        dotnet run --project src/Dentasys.CaptureAgent -- drain
 
-# Review screen: notes queue / show / sign, e.g. just notes-review queue 001204
-notes-review *ARGS:
-    @cd dotnet && DENTASYS_NOTES_URL=http://localhost:5181/ dotnet run --project src/Dentasys.App -- notes {{ARGS}}
+# Review screen as a signed-in clinician, e.g. just notes-review dr.lee DDS1 001204 queue 001204
+notes-review USER PROV PRACTICE *ARGS:
+    @cd dotnet && DENTASYS_NOTES_URL=http://localhost:5181/ \
+        DENTASYS_NOTES_TOKEN="$(just notes-token clinician {{PRACTICE}} {{USER}} {{PROV}})" \
+        dotnet run --project src/Dentasys.App -- notes {{ARGS}}
 
 # Notes service against DENTASYS_NOTES: lifecycle, disconnects, resync, chart outbox.
 notes-test:

@@ -30,7 +30,8 @@ switch (args.FirstOrDefault())
 
         var id = Guid.NewGuid();
         spool.Start(new CaptureManifest(id, Opt("--practice", "001204"), int.Parse(Opt("--patient", "41701")),
-                                        null, Opt("--provider", "DDS1"), ConsentRecorded: true, ChunkCount: null));
+                                        null, Opt("--provider", "DDS1"), ConsentRecorded: true,
+                                        AudioFormat: "application/x-dentasys-transcript+json", ChunkCount: null));
         var audio = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(visit.Transcript, ClinicalNoteDraft.Json)).Chunk(256).ToList();
         for (var i = 0; i < audio.Count; i++) spool.AppendChunk(id, i, audio[i]);
         spool.Finish(id, audio.Count);
@@ -41,6 +42,8 @@ switch (args.FirstOrDefault())
     case "drain":
     {
         using var http = new HttpClient { BaseAddress = new Uri(Opt("--url", "http://localhost:5181/")), Timeout = TimeSpan.FromSeconds(30) };
+        http.DefaultRequestHeaders.Authorization = new("Bearer",
+            Environment.GetEnvironmentVariable("DENTASYS_AGENT_TOKEN") ?? throw new InvalidOperationException("set DENTASYS_AGENT_TOKEN"));
         var r = await new Uploader(spool, http).DrainAsync();
         Console.WriteLine($"sent {r.ChunksSent} chunk(s), completed {r.CapturesCompleted} capture(s)" +
                           (r.Offline ? "; service unreachable, will retry" : ""));

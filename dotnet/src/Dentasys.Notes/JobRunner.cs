@@ -70,7 +70,9 @@ public sealed class JobRunner
         var chunks = (await conn.QueryAsync<byte[]>(new CommandDefinition(
             "SELECT content FROM notes.capture_chunk WHERE capture_id = @NoteId ORDER BY chunk_no",
             new { job.NoteId }, cancellationToken: ct))).ToList();
-        var transcript = await _transcriber.TranscribeAsync(chunks, ct);
+        var format = await conn.ExecuteScalarAsync<string>(new CommandDefinition(
+            "SELECT audio_format FROM notes.capture WHERE capture_id = @NoteId", new { job.NoteId }, cancellationToken: ct));
+        var transcript = await _transcriber.TranscribeAsync(new AudioInput(format!, chunks), ct);
 
         await using var tx = conn.BeginTransaction();
         var now = _clock.GetUtcNow();
@@ -84,7 +86,8 @@ public sealed class JobRunner
         if (moved == 1)
         {
             await Jobs.EnqueueAsync(conn, tx, job.NoteId, "draft", now, ct);
-            await Audit.WriteAsync(conn, tx, job.NoteId, now, "notes-service", "transcribed", $"{transcript.Count} lines", ct);
+            await Audit.WriteAsync(conn, tx, job.NoteId, now, "notes-service", "transcribed",
+                $"{transcript.Segments.Count} segments, {transcript.Unclear.Count} unclear, {transcript.Engine}", ct);
         }
         await tx.CommitAsync(ct);
     }
@@ -102,11 +105,12 @@ public sealed class JobRunner
             return;
         }
 
-        var transcript = JsonSerializer.Deserialize<List<TranscriptLine>>(note.Transcript ?? "[]", ClinicalNoteDraft.Json)!;
+        var transcription = JsonSerializer.Deserialize<Transcription>(note.Transcript!, ClinicalNoteDraft.Json)!;
+        var transcript = transcription.ForDrafter();
         var cloud = await _cloud.DraftAsync(transcript, ct);
         if (cloud.Draft is not null)
         {
-            await RecordDraftAsync(conn, job, $"cloud:{_cloud.Source}", cloud.Draft, isCloud: true, ct);
+            await RecordDraftAsync(conn, job, $"cloud:{_cloud.Source}", WithFlags(cloud.Draft, transcription), isCloud: true, ct);
             return;
         }
 
@@ -118,7 +122,7 @@ public sealed class JobRunner
                 // The role is recorded, not the drafter's own name: the review screen and
                 // the sign gate key on "local:", and a model named anything at all must not
                 // slip past them by being configured as the fallback.
-                await RecordDraftAsync(conn, job, $"local:{_local.Source}", local.Draft, isCloud: false, ct);
+                await RecordDraftAsync(conn, job, $"local:{_local.Source}", WithFlags(local.Draft, transcription), isCloud: false, ct);
                 return;
             }
             cloud = cloud with { Error = $"{cloud.Error}; local: {local.Error}" };
@@ -127,6 +131,9 @@ public sealed class JobRunner
         await Lease.RetryAsync(conn, "job", job, $"cloud: {cloud.Error}",
                                _clock.GetUtcNow() + _options.RetryDelay(job.Attempts), ct);
     }
+
+    private static ClinicalNoteDraft WithFlags(ClinicalNoteDraft draft, Transcription t) =>
+        t.Unclear.Count == 0 ? draft : draft with { ReviewFlags = [.. t.ReviewFlags(), .. draft.ReviewFlags] };
 
     private async Task RecordDraftAsync(SqlConnection conn, Claimed job, string source, ClinicalNoteDraft draft,
                                         bool isCloud, CancellationToken ct)
