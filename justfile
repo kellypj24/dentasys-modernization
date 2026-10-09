@@ -27,8 +27,8 @@ up: && wait
 # Block until SQL Server reports healthy (slow on Apple Silicon -- Rosetta)
 wait:
     @echo "waiting for {{LEGACY}} to report healthy (first boot under Rosetta takes ~90s)..."
-    @until [ "$(docker inspect --format '{{{{.State.Health.Status}}}}' {{LEGACY}} 2>/dev/null)" = "healthy" ]; do sleep 5; done
-    @until [ "$(docker inspect --format '{{{{.State.Health.Status}}}}' {{TARGET}} 2>/dev/null)" = "healthy" ]; do sleep 2; done
+    @until [ "$(docker inspect --format '{{{{.State.Health.Status}}' {{LEGACY}} 2>/dev/null)" = "healthy" ]; do sleep 5; done
+    @until [ "$(docker inspect --format '{{{{.State.Health.Status}}' {{TARGET}} 2>/dev/null)" = "healthy" ]; do sleep 2; done
     @echo "both engines healthy"
 
 # Stop the containers, keeping their volumes
@@ -179,8 +179,12 @@ report PRACTICE FROM TO:
 # Draft all synthetic visits with a local model and score them, e.g. just notetaker-eval gemma3:4b --pause 10
 # One run at a time; stop the containers first (`just down`) to give the model the memory.
 notetaker-eval MODEL *ARGS:
-    @ollama list | grep -q "^{{MODEL}}" || { echo "{{MODEL}} is not pulled -- ollama pull {{MODEL}}" >&2; exit 1; }
+    @ollama list | grep "^{{MODEL}}" > /dev/null || { echo "{{MODEL}} is not pulled -- ollama pull {{MODEL}}" >&2; exit 1; }
     @dotnet run --project dotnet/src/Dentasys.Notetaker.Eval -- --drafter ollama --model {{MODEL}} {{ARGS}}
+
+# Re-score a saved run against the current visits and scorer. No model, no GPU.
+notetaker-rescore RESULT:
+    @dotnet run --project dotnet/src/Dentasys.Notetaker.Eval -- --rescore {{RESULT}}
 
 # Same, with Claude via the Anthropic API (synthetic visits only; costs money). Needs ANTHROPIC_API_KEY.
 notetaker-eval-claude *ARGS:
@@ -191,7 +195,7 @@ notetaker-eval-claude *ARGS:
 # cloud unreachable on purpose: capture -> local fallback -> sign -> CLINICAL_NOTE.
 # Paced and small (3 visits, ~20 s of GPU); stop any other model run first.
 notes-smoke MODEL="gemma3:4b" *ARGS:
-    @ollama list | grep -q "^{{MODEL}}" || { echo "{{MODEL}} is not pulled -- ollama pull {{MODEL}}" >&2; exit 1; }
+    @ollama list | grep "^{{MODEL}}" > /dev/null || { echo "{{MODEL}} is not pulled -- ollama pull {{MODEL}}" >&2; exit 1; }
     @! pgrep -f '[D]entasys.Notetaker.Eval|[D]entasys.Notes.Smoke' > /dev/null || { echo "another model run is in progress" >&2; exit 1; }
     @dotnet run --project dotnet/src/Dentasys.Notes.Smoke -- --model {{MODEL}} {{ARGS}}
 

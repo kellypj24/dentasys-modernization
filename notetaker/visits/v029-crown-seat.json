@@ -46,7 +46,8 @@
           "adjust",
           "occlus",
           "bite"
-        ]
+        ],
+        "accept_tooth": "3"
       }
     ],
     "forbidden": [

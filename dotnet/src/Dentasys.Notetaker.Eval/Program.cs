@@ -7,6 +7,10 @@ using Dentasys.Notetaker.Claude;
 // notetaker-eval --drafter claude [--model claude-opus-5-5] [--effort medium]
 // notetaker-eval --drafter ollama --model llama3.1:8b
 //                [--ctx 4096] [--pause SECONDS]
+// notetaker-eval --rescore notetaker/results/<run>.json
+//   Re-scores the drafts saved in an earlier run against the current visits and
+//   scorer. No model is called: changing a key or the scorer costs a second, not
+//   a re-run.
 //                [--visits DIR] [--only ID] [--out DIR]
 //
 // Drafts every synthetic visit with one drafter and scores it. Slow, and for
@@ -21,7 +25,7 @@ string Arg(string name, string? fallback = null)
 }
 
 var kind = Arg("--drafter", "ollama");
-var model = Arg("--model", kind == "claude" ? "claude-opus-5-5" : null);
+var model = Arg("--model", kind == "claude" ? "claude-opus-5-5" : args.Contains("--rescore") ? "" : null);
 var visitsDir = Arg("--visits", "notetaker/visits");
 var outDir = Arg("--out", "notetaker/results");
 var only = args.Contains("--only") ? Arg("--only") : null;
@@ -32,6 +36,28 @@ var ollama = Environment.GetEnvironmentVariable("OLLAMA_HOST") ?? "http://localh
 
 var visits = Visit.LoadAll(visitsDir).Where(v => only is null || v.Id == only).ToList();
 if (visits.Count == 0) { Console.Error.WriteLine($"no visits in {visitsDir}"); return 1; }
+
+if (args.Contains("--rescore"))
+{
+    var run = JsonDocument.Parse(File.ReadAllText(Arg("--rescore")));
+    var byId = visits.ToDictionary(v => v.Id);
+    var rescored = new List<VisitScore>();
+    Console.WriteLine($"rescoring {run.RootElement.GetProperty("summary").GetProperty("model")}");
+    foreach (var row in run.RootElement.GetProperty("rows").EnumerateArray())
+    {
+        var id = row.GetProperty("visit").GetString()!;
+        if (!byId.TryGetValue(id, out var visit) || !row.TryGetProperty("draft", out var d)) continue;
+        var score = NoteScorer.Score(visit, d.Deserialize<ClinicalNoteDraft>(ClinicalNoteDraft.Json)!);
+        rescored.Add(score);
+        Console.WriteLine($"  {id,-10} recall {score.Recall,5:P0}  tooth-err {score.ToothErrors}  " +
+                          $"ungrounded {score.Ungrounded}  noise {score.NoiseHits}  extras {score.Extras}");
+    }
+    var items = rescored.Sum(s => s.KeyItems);
+    Console.WriteLine($"\n  recall {(items == 0 ? 0 : (double)rescored.Sum(s => s.Matched) / items):P1}   " +
+                      $"tooth errors {rescored.Sum(s => s.ToothErrors)}   ungrounded {rescored.Sum(s => s.Ungrounded)}   " +
+                      $"noise {rescored.Sum(s => s.NoiseHits)}   extras {rescored.Sum(s => s.Extras)}");
+    return 0;
+}
 
 // 4 minutes per visit: a cold model load plus a long transcript. A run that
 // needs longer than that is a finding, not something to wait out.

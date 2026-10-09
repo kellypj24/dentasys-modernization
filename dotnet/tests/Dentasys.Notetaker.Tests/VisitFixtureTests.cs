@@ -49,7 +49,8 @@ public sealed class VisitFixtureTests
     public void Answer_key_teeth_are_universal_designations()
     {
         var teeth = Visits.SelectMany(v =>
-            v.Expected.Findings.Concat(v.Expected.ProceduresPerformed).Concat(v.Expected.Plan).Select(k => k.Tooth)
+            v.Expected.Findings.Concat(v.Expected.ProceduresPerformed).Concat(v.Expected.Plan)
+             .SelectMany(k => new[] { k.Tooth, k.AcceptTooth })
              .Concat(v.Expected.Perio.Select(p => p.Tooth)).Where(t => t is not null).Select(t => (v.Id, Tooth: t!)));
 
         Assert.All(teeth, t => Assert.True(

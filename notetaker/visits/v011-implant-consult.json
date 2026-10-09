@@ -61,7 +61,8 @@
           "CBCT",
           "cone beam",
           "scan"
-        ]
+        ],
+        "accept_tooth": "30"
       },
       {
         "keywords": [

@@ -63,12 +63,17 @@ public static class NoteScorer
                 }
 
                 var nearMiss = Index(drafted, (i, d) => !used.Contains(i) && AnyKeyword(d.Description, k.Keywords));
-                if (nearMiss >= 0 && k.Tooth is not null)
+                if (nearMiss >= 0)
                 {
+                    // Either the wrong tooth, or a tooth where the visit named none:
+                    // a denture adjustment charted on "tooth L" is a primary molar
+                    // in someone's record, which is worse than leaving it blank.
                     used.Add(nearMiss);
                     toothErrors++;
                     var d = drafted[nearMiss];
-                    problems.Add($"{category}: '{k.Keywords[0]}' on {Fmt(k.Tooth, k.Surfaces)}, drafted {Fmt(d.Tooth, d.Surfaces)}");
+                    problems.Add(k.Tooth is null
+                        ? $"{category}: '{k.Keywords[0]}' needs no tooth, drafted {Fmt(d.Tooth, d.Surfaces)}"
+                        : $"{category}: '{k.Keywords[0]}' on {Fmt(k.Tooth, k.Surfaces)}, drafted {Fmt(d.Tooth, d.Surfaces)}");
                 }
                 else
                 {
@@ -161,9 +166,21 @@ public static class NoteScorer
         return new string(letters.Select(c => c == 'F' ? 'B' : c).Distinct().OrderBy(c => "MODBLI".IndexOf(c)).ToArray());
     }
 
+    /// <summary>
+    /// When the key names a tooth, the draft must name the same tooth and surfaces.
+    /// When it names none, the draft may name none or a span ("18-20" for a bridge,
+    /// "lower arch" for a denture) -- but not one specific tooth, which would put a
+    /// finding on a tooth the visit never mentioned.
+    /// </summary>
     private static bool SameTooth(KeyItem k, ToothItem d) =>
-        NormalizeTooth(k.Tooth) == NormalizeTooth(d.Tooth)
-        && (k.Surfaces is null || NormalizeSurfaces(k.Surfaces) == NormalizeSurfaces(d.Surfaces));
+        k.Tooth is null
+            ? !IsSingleTooth(d.Tooth) || (k.AcceptTooth is not null && NormalizeTooth(k.AcceptTooth) == NormalizeTooth(d.Tooth))
+            : NormalizeTooth(k.Tooth) == NormalizeTooth(d.Tooth)
+              && (k.Surfaces is null || NormalizeSurfaces(k.Surfaces) == NormalizeSurfaces(d.Surfaces));
+
+    /// <summary>True for one Universal tooth ("14", "K"); false for null, spans, arches and quadrants.</summary>
+    public static bool IsSingleTooth(string? tooth) =>
+        NormalizeTooth(tooth) is { } t && Regex.IsMatch(t, "^([1-9]|[12][0-9]|3[0-2]|[A-T])$");
 
     private static bool AnyKeyword(string text, IReadOnlyList<string> keywords) =>
         keywords.Any(k => text.Contains(k, StringComparison.OrdinalIgnoreCase));
