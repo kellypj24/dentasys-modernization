@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Claude drafter, kept out of Dentasys.Notetaker so the contract and the
+       scorer carry no SDK dependency. -->
+  <ItemGroup>
+    <ProjectReference Include="../Dentasys.Notetaker/Dentasys.Notetaker.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.54.1" />
+  </ItemGroup>
+</Project>

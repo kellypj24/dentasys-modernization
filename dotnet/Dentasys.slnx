@@ -6,6 +6,7 @@
     <Project Path="src/Dentasys.Data.Postgres/Dentasys.Data.Postgres.csproj" />
     <Project Path="src/Dentasys.Data.SqlServer/Dentasys.Data.SqlServer.csproj" />
     <Project Path="src/Dentasys.Domain/Dentasys.Domain.csproj" />
+    <Project Path="src/Dentasys.Notetaker.Claude/Dentasys.Notetaker.Claude.csproj" />
     <Project Path="src/Dentasys.Notetaker.Eval/Dentasys.Notetaker.Eval.csproj" />
     <Project Path="src/Dentasys.Notetaker/Dentasys.Notetaker.csproj" />
     <Project Path="src/Dentasys.Parity/Dentasys.Parity.csproj" />

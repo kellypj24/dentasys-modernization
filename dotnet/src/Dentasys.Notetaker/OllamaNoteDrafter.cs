@@ -16,7 +16,10 @@ public sealed class OllamaNoteDrafter : INoteDrafter
     private readonly string _model;
     private readonly int _contextTokens;
 
-    public OllamaNoteDrafter(HttpClient http, string model, int contextTokens = 8192)
+    // 4096: the longest synthetic visit is ~1,200 tokens of prompt plus output.
+    // Ollama allocates KV cache for the whole window up front, so an oversized
+    // window is memory spent on nothing.
+    public OllamaNoteDrafter(HttpClient http, string model, int contextTokens = 4096)
     {
         _http = http;
         _model = model;
@@ -31,6 +34,9 @@ public sealed class OllamaNoteDrafter : INoteDrafter
         {
             ["model"] = _model,
             ["stream"] = false,
+            // Unload 30 s after the last request, so the model's memory is returned
+            // when a run ends instead of staying resident for Ollama's default 5 min.
+            ["keep_alive"] = "30s",
             ["format"] = ClinicalNoteDraft.Schema(),
             ["options"] = new JsonObject { ["temperature"] = 0, ["num_ctx"] = _contextTokens },
             ["messages"] = new JsonArray(

@@ -52,6 +52,7 @@ public sealed record ClinicalNoteDraft
                 ["type"] = "object",
                 ["properties"] = p,
                 ["required"] = new JsonArray(props.Select(x => (JsonNode)x.Name).ToArray()),
+                ["additionalProperties"] = false,
             };
         }
 

@@ -14,8 +14,9 @@ talk that must not reach the note. `review_flag_required` marks a visit that is
 unclear on purpose, where the right draft asks instead of guessing.
 
 ```bash
-just notetaker-eval gemma3:4b             # all visits
-just notetaker-eval gemma3:4b --only v016 # one visit
+just notetaker-eval gemma3:4b --pause 10  # local model, idling 10 s between visits
+just notetaker-eval gemma3:4b --only v016  # one visit
+just notetaker-eval-claude                 # Claude Opus 5.5 via the API; --model / --effort to change
 just notetaker-test                       # scorer + fixture tests, no model
 ```
 
