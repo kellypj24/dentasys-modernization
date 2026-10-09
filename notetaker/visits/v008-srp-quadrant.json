@@ -1,0 +1,95 @@
+{
+  "id": "v008",
+  "title": "Scaling and root planing, upper right, deep pockets",
+  "tags": [
+    "perio",
+    "hygiene"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "My gums bleed every time I brush."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "That fits what we're seeing. Number two distobuccal is six, number three mesiobuccal is five."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Number four is all threes. Number five distal is five."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Doing scaling and root planing on the upper right quadrant today, numbing first."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Upper right SRP is done. Heavy subgingival calculus on two and three."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Let's do the upper left quadrant next visit and re-evaluate in six weeks."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "bleed"
+    ],
+    "perio": [
+      {
+        "tooth": "2",
+        "depth_mm": 6
+      },
+      {
+        "tooth": "3",
+        "depth_mm": 5
+      },
+      {
+        "tooth": "5",
+        "depth_mm": 5
+      }
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "calculus",
+          "tartar"
+        ],
+        "tooth": "2"
+      },
+      {
+        "keywords": [
+          "calculus",
+          "tartar"
+        ],
+        "tooth": "3"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "scaling",
+          "root planing",
+          "SRP"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "upper left",
+          "scaling",
+          "SRP"
+        ]
+      },
+      {
+        "keywords": [
+          "re-evaluat",
+          "reevaluat",
+          "six weeks",
+          "6 weeks"
+        ]
+      }
+    ]
+  }
+}

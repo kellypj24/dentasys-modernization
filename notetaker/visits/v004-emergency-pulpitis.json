@@ -1,0 +1,93 @@
+{
+  "id": "v004",
+  "title": "Emergency visit: throbbing pain on a lower molar",
+  "tags": [
+    "emergency",
+    "endo"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "What brings you in today?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "My lower right back tooth has been throbbing for three days, it keeps me up at night."
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "I've been taking ibuprofen, like four hundred milligrams every few hours."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Let's get a periapical x-ray of that area."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Cold test on thirty is lingering, it hurts for a long time after. Percussion is positive on thirty."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Thirty has deep decay on the distal reaching the pulp. This is irreversible pulpitis."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "I'd recommend a root canal on thirty and then a crown. We can start the root canal next week."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "pain",
+      "throbbing",
+      "toothache"
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "decay",
+          "caries"
+        ],
+        "tooth": "30",
+        "surfaces": "D"
+      },
+      {
+        "keywords": [
+          "pulpitis"
+        ],
+        "tooth": "30"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "x-ray",
+          "radiograph",
+          "periapical"
+        ]
+      }
+    ],
+    "medical_history": [
+      {
+        "keywords": [
+          "ibuprofen"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "root canal",
+          "endodontic",
+          "RCT"
+        ],
+        "tooth": "30"
+      },
+      {
+        "keywords": [
+          "crown"
+        ],
+        "tooth": "30"
+      }
+    ]
+  }
+}

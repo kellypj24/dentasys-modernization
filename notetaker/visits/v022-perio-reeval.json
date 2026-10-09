@@ -1,0 +1,48 @@
+{
+  "id": "v022",
+  "title": "Periodontal re-evaluation after SRP, pockets improved",
+  "tags": [
+    "perio"
+  ],
+  "transcript": [
+    {
+      "speaker": "HYGIENIST",
+      "text": "This is your six-week re-eval after the deep cleaning."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Number two distobuccal is down to four. Number three is down to three everywhere."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Number five distal is still five, bleeding there."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Good improvement. Let's put her on three-month perio maintenance."
+    }
+  ],
+  "expected": {
+    "perio": [
+      {
+        "tooth": "2",
+        "depth_mm": 4
+      },
+      {
+        "tooth": "5",
+        "depth_mm": 5
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "three-month",
+          "3-month",
+          "three month",
+          "3 month",
+          "maintenance"
+        ]
+      }
+    ]
+  }
+}

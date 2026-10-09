@@ -1,0 +1,65 @@
+{
+  "id": "v019",
+  "title": "Abscess with facial swelling, antibiotic and referral",
+  "tags": [
+    "emergency",
+    "endo",
+    "medical-history"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "My face started swelling yesterday on the left side."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Any allergies to medications?"
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "None that I know of."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "There's a periapical abscess on nineteen with swelling in the vestibule."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "I'm prescribing amoxicillin five hundred milligrams three times a day for seven days."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "I'm referring you to the endodontist for a root canal on nineteen this week."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "swell"
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "abscess",
+          "infection"
+        ],
+        "tooth": "19"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "amoxicillin",
+          "antibiotic"
+        ]
+      },
+      {
+        "keywords": [
+          "root canal",
+          "endodont",
+          "refer"
+        ],
+        "tooth": "19"
+      }
+    ]
+  }
+}

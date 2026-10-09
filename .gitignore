@@ -13,3 +13,6 @@ obj/
 *.tfstate.*
 *.tfvars
 crash.log
+
+# Eval runs: model output over synthetic visits; reproducible, not source
+notetaker/results/

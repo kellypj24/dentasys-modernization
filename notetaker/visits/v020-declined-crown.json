@@ -1,0 +1,47 @@
+{
+  "id": "v020",
+  "title": "Patient declines a recommended crown",
+  "tags": [
+    "restorative",
+    "declined"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "Number three has a large old filling with cracks around it. I recommend a crown."
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "I can't afford that right now. Can we wait?"
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "We can, but the risk is it breaks. I'll note that you declined the crown on three today."
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "Okay, I understand."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "crack",
+          "large filling",
+          "fracture"
+        ],
+        "tooth": "3"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "declin",
+          "refus"
+        ],
+        "tooth": "3"
+      }
+    ]
+  }
+}

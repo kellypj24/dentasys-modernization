@@ -166,6 +166,19 @@ report PRACTICE FROM TO:
         AND entry_date BETWEEN '{{FROM}}' AND '{{TO}}' GROUP BY ALL ORDER BY ALL"
 
 # ---------------------------------------------------------------------------
+# notetaker (docs/NOTETAKER.md)
+# ---------------------------------------------------------------------------
+
+# Draft all synthetic visits with a local model and score them, e.g. just notetaker-eval gemma3:4b
+notetaker-eval MODEL *ARGS:
+    @ollama list | grep -q "^{{MODEL}}" || { echo "{{MODEL}} is not pulled -- ollama pull {{MODEL}}" >&2; exit 1; }
+    @dotnet run --project dotnet/src/Dentasys.Notetaker.Eval -- --model {{MODEL}} {{ARGS}}
+
+# Scorer and visit-fixture tests. No model, no database; part of `just check`.
+notetaker-test:
+    @cd dotnet && dotnet test tests/Dentasys.Notetaker.Tests --nologo -v q
+
+# ---------------------------------------------------------------------------
 # the application
 # ---------------------------------------------------------------------------
 
@@ -360,4 +373,4 @@ verify:
     @echo ""
 
 # The pre-push gauntlet: infra tests, rebuild both sides from source, build analytics, then assert. Run before pushing.
-check: infra-check rebuild test migrate analytics parity
+check: infra-check notetaker-test rebuild test migrate analytics parity

@@ -1,0 +1,67 @@
+{
+  "id": "v028",
+  "title": "Hygiene visit where the patient shares sensitive personal news",
+  "tags": [
+    "hygiene",
+    "small-talk",
+    "sensitive"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "Sorry if I'm distracted, my divorce was finalized this week."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "I'm so sorry, that's a lot. Take your time."
+    },
+    {
+      "speaker": "PATIENT",
+      "text": "It's okay. I haven't been flossing much through all of it."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Understood. There's generalized gingivitis, the gums are puffy and bleeding."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Doing a regular cleaning today."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "No decay. Let's see you back in three months to check the gums."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "gingivitis",
+          "inflam",
+          "bleeding"
+        ]
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "cleaning",
+          "prophy"
+        ]
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "three months",
+          "3 months",
+          "three-month",
+          "3-month"
+        ]
+      }
+    ],
+    "forbidden": [
+      "divorce"
+    ]
+  }
+}

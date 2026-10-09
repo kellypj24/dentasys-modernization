@@ -1,0 +1,71 @@
+{
+  "id": "v012",
+  "title": "Root canal on an upper central incisor",
+  "tags": [
+    "endo"
+  ],
+  "transcript": [
+    {
+      "speaker": "DENTIST",
+      "text": "Number eight has been dark for a while and the cold test is negative, the nerve is dead."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Starting the root canal on eight, lingual access."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Canal cleaned and shaped, filled with gutta percha. Root canal on eight is complete."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Placing a composite in the lingual access."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Eight will need a crown in the next few weeks since it's discolored and brittle now."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "necro",
+          "dead",
+          "non-vital",
+          "nonvital",
+          "discolor",
+          "dark"
+        ],
+        "tooth": "8"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "root canal",
+          "endodontic",
+          "RCT"
+        ],
+        "tooth": "8"
+      },
+      {
+        "keywords": [
+          "composite",
+          "filling",
+          "access"
+        ],
+        "tooth": "8",
+        "surfaces": "L"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "crown"
+        ],
+        "tooth": "8"
+      }
+    ]
+  }
+}

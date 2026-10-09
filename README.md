@@ -270,6 +270,8 @@ target/              the PostgreSQL side
   05_write_model.sql   outbox, audit, and the constraints 1997 never had
   export_fleet.sql     SQL Server -> psql COPY stream
 
+notetaker/            synthetic visits + eval harness for the ambient notetaker
+
 analytics/            dbt on DuckDB. Reads PostgreSQL read-only, once per build
   models/staging/      copies of ledger_entry / procedure_code; codes upper-cased (#3)
   models/marts/        fct_production_collection_daily -- the report, any date range

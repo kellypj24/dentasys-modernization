@@ -1,0 +1,68 @@
+{
+  "id": "v030",
+  "title": "Chipped front tooth after a basketball elbow",
+  "tags": [
+    "emergency",
+    "restorative",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "I took an elbow playing basketball. The Lakers fan in me is crying."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Number nine has a chip on the incisal edge, enamel and a little dentin, no pulp exposure."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Bonding the incisal edge on nine with composite today."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Let's check the nerve on nine again in six weeks since it took a hit."
+    }
+  ],
+  "expected": {
+    "chief_complaint": [
+      "chip",
+      "broke"
+    ],
+    "findings": [
+      {
+        "keywords": [
+          "chip",
+          "fracture"
+        ],
+        "tooth": "9",
+        "surfaces": "I"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "bond",
+          "composite"
+        ],
+        "tooth": "9",
+        "surfaces": "I"
+      }
+    ],
+    "plan": [
+      {
+        "keywords": [
+          "six weeks",
+          "6 weeks",
+          "vitality",
+          "nerve",
+          "recheck"
+        ],
+        "tooth": "9"
+      }
+    ],
+    "forbidden": [
+      "lakers"
+    ]
+  }
+}

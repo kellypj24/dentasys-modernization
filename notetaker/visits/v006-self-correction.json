@@ -1,0 +1,59 @@
+{
+  "id": "v006",
+  "title": "Dentist corrects the tooth number mid-sentence",
+  "tags": [
+    "restorative",
+    "correction",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PATIENT",
+      "text": "I got tickets to the Taylor Swift concert, finally."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Lucky you. Alright, the pit on the buccal of number fourteen, sorry, fifteen, I mean fifteen, has decay."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Small buccal composite on fifteen today."
+    },
+    {
+      "speaker": "ASSISTANT",
+      "text": "Curing light."
+    },
+    {
+      "speaker": "DENTIST",
+      "text": "Buccal composite on fifteen is done. Everything else looks stable."
+    }
+  ],
+  "expected": {
+    "findings": [
+      {
+        "keywords": [
+          "decay",
+          "caries",
+          "pit"
+        ],
+        "tooth": "15",
+        "surfaces": "B"
+      }
+    ],
+    "procedures_performed": [
+      {
+        "keywords": [
+          "composite",
+          "filling",
+          "restoration"
+        ],
+        "tooth": "15",
+        "surfaces": "B"
+      }
+    ],
+    "forbidden": [
+      "taylor swift",
+      "concert"
+    ]
+  }
+}

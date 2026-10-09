@@ -1,0 +1,65 @@
+{
+  "id": "v021",
+  "title": "Sealants on all four permanent second molars",
+  "tags": [
+    "pediatric",
+    "preventive",
+    "small-talk"
+  ],
+  "transcript": [
+    {
+      "speaker": "PARENT",
+      "text": "He just got his learner's permit, so watch out on the roads."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Oh no! Okay, his twelve-year molars are fully in."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "Placing sealants on two, fifteen, eighteen, and thirty-one."
+    },
+    {
+      "speaker": "HYGIENIST",
+      "text": "All four sealants are on. Fluoride varnish too."
+    }
+  ],
+  "expected": {
+    "procedures_performed": [
+      {
+        "keywords": [
+          "sealant"
+        ],
+        "tooth": "2"
+      },
+      {
+        "keywords": [
+          "sealant"
+        ],
+        "tooth": "15"
+      },
+      {
+        "keywords": [
+          "sealant"
+        ],
+        "tooth": "18"
+      },
+      {
+        "keywords": [
+          "sealant"
+        ],
+        "tooth": "31"
+      },
+      {
+        "keywords": [
+          "fluoride",
+          "varnish"
+        ]
+      }
+    ],
+    "forbidden": [
+      "learner",
+      "permit"
+    ]
+  }
+}
