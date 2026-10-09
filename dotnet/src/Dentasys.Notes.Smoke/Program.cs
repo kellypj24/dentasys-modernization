@@ -77,7 +77,7 @@ foreach (var visit in visits)
     }
 
     var score = NoteScorer.Score(visit, note.Current);
-    await service.SignAsync(id, note.CurrentVersion!.Value, "smoke");
+    await service.SignAsync(id, note.CurrentVersion!.Value, "smoke", acknowledgedLocalDraft: true);
     await chart.RunUntilIdleAsync();
 
     var charted = (await service.GetAsync(id))!.State == NoteState.Charted;

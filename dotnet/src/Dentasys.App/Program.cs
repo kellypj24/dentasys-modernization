@@ -12,6 +12,13 @@ using Dentasys.Domain;
 
 var argv = args.ToList();
 
+if (argv.FirstOrDefault() == "notes")
+{
+    var notesUrl = Environment.GetEnvironmentVariable("DENTASYS_NOTES_URL") ?? "http://localhost:5181/";
+    return await NotesCommand.RunAsync(argv.Skip(1).ToList(),
+        new NotesApiClient(new HttpClient { BaseAddress = new Uri(notesUrl) }));
+}
+
 bool Flag(string name)
 {
     var i = argv.IndexOf(name);

@@ -13,8 +13,8 @@ public sealed class NotesLifecycleTests
 {
     private readonly NotesDb _db;
     private readonly ManualClock _clock = new();
-    private readonly SwitchableDrafter _cloud = new("cloud:test", "cloud draft");
-    private readonly SwitchableDrafter _local = new("local:test", "local draft");
+    private readonly SwitchableDrafter _cloud = new("test", "cloud draft");
+    private readonly SwitchableDrafter _local = new("test", "local draft");
     private readonly NotesService _service;
     private readonly ChartWriter _chart;
 
@@ -58,8 +58,8 @@ public sealed class NotesLifecycleTests
         await _service.RegisterCaptureAsync(new CaptureRegistration(id, NotesDb.Upgraded, 41701, null, "DDS1", true));
         var chunks = FixtureTranscriber.ToChunks(NotesDb.Transcript, chunkBytes: 64);
 
-        Assert.True(await _service.PutChunkAsync(id, 0, chunks[0]));
-        Assert.False(await _service.PutChunkAsync(id, 0, chunks[0]));   // the agent re-sent after a timeout
+        Assert.Equal(ChunkResult.Stored, await _service.PutChunkAsync(id, 0, chunks[0]));
+        Assert.Equal(ChunkResult.Duplicate, await _service.PutChunkAsync(id, 0, chunks[0]));   // the agent re-sent after a timeout
 
         var partial = await _service.CompleteUploadAsync(id, chunks.Count);
         Assert.False(partial.Complete);
@@ -158,7 +158,8 @@ public sealed class NotesLifecycleTests
         await runner.RunUntilIdleAsync();
 
         var local = (await _service.GetAsync(id))!;
-        await _service.SignAsync(id, local.CurrentVersion!.Value, "dr.lee");
+        Assert.Equal(EditResult.LocalDraftNotAcknowledged, (await _service.SignAsync(id, local.CurrentVersion!.Value, "dr.lee")).Result);
+        Assert.Equal(EditResult.Saved, (await _service.SignAsync(id, local.CurrentVersion!.Value, "dr.lee", acknowledgedLocalDraft: true)).Result);
 
         _cloud.Down = false;
         _clock.Advance(_db.Options.RetryCap);
@@ -261,7 +262,7 @@ public sealed class NotesLifecycleTests
         var transcribe = new JobRunner(_db.Options, new FixtureTranscriber(), _cloud, null, _clock);
         Assert.True(await transcribe.RunOnceAsync());            // transcription done; the draft job is due
 
-        var slow = new BlockingDrafter("cloud:slow");
+        var slow = new BlockingDrafter("slow");
         var stuck = new JobRunner(_db.Options, new FixtureTranscriber(), slow, null, _clock).RunOnceAsync();
         await slow.Entered.Task;                                 // worker A holds the draft job, mid-call
 

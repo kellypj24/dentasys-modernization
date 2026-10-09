@@ -3,5 +3,6 @@
        connection cannot accidentally open one. -->
   <ItemGroup>
     <ProjectReference Include="../Dentasys.Domain/Dentasys.Domain.csproj" />
+    <ProjectReference Include="../Dentasys.Notetaker/Dentasys.Notetaker.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs on the operatory workstation. No database driver, no notes-service
+       assembly: it knows the spool on its own disk and an HTTP endpoint. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>capture-agent</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Dentasys.Notetaker/Dentasys.Notetaker.csproj" />
+  </ItemGroup>
+</Project>

@@ -219,7 +219,8 @@ connection because it has nothing to open one with.
 - [x] **Write parity** — quantifies the behavior change the hidden trigger was masking
 - [x] **Notetaker phase 1** — note contract, 30 synthetic visits, eval harness, local + Claude drafters
 - [x] **Notetaker phase 2** — notes service: store, lifecycle, leased job queue, cloud→local fallback, chart outbox that holds until 07.04.00
-- [ ] Notetaker phase 3 — HTTP API, capture agent + spool, review/sign panel in the client
+- [x] **Notetaker phase 3** — notes API + workers, capture agent with encrypted resumable spool, review/sign in the client; local-model drafts need explicit acknowledgement, enforced server-side
+- [ ] Notetaker phase 4 — real speech-to-text behind `ITranscriber`, keyed Claude eval, provider identity from authentication
 - [ ] Remaining two procs: `usp_NightlyRecallAndClaims` → worker, `usp_PostLedgerAndAging` → C# domain service
 - [x] **Analytics** — `usp_RptProductionCollection` as the oracle; dbt on DuckDB reads PostgreSQL once and reports off it; report parity across the fleet
 - [x] Azure target in Terraform — Postgres Flexible Server, free-tier SKUs asserted by `terraform test` (`infra/README.md`)
@@ -292,6 +293,8 @@ dotnet/
   src/Dentasys.Parity/          the classification model and the comparer
   src/Dentasys.Notetaker*/       note contract, drafters, scorer, eval runner
   src/Dentasys.Notes/           notes service: store, lifecycle, job queue, chart outbox
+  src/Dentasys.Notes.Api/       the notes service process: HTTP API + background workers
+  src/Dentasys.CaptureAgent/    operatory workstation: encrypted spool + resumable uploader
   tests/Dentasys.Parity.Tests/  read parity, write parity, and the booking rules
 
 infra/

@@ -10,7 +10,12 @@ public sealed record CaptureRegistration(
 
 public sealed record UploadOutcome(bool Complete, IReadOnlyList<int> MissingChunks);
 
-public enum EditResult { Saved, Conflict, NotEditable, NotFound }
+public enum ChunkResult { Stored, Duplicate, UnknownCapture }
+
+public sealed record QueueItem(Guid NoteId, int PatientId, int? ApptId, string ProviderCode, string State,
+                               string? CurrentSource, DateTimeOffset UpdatedAt);
+
+public enum EditResult { Saved, Conflict, NotEditable, NotFound, LocalDraftNotAcknowledged }
 public sealed record EditOutcome(EditResult Result, int? Version, string? State);
 
 public sealed record NoteView(
@@ -60,8 +65,8 @@ public sealed class NotesService
         await tx.CommitAsync(ct);
     }
 
-    /// <summary>Returns false when the chunk was already stored: a re-send, acknowledged and ignored.</summary>
-    public async Task<bool> PutChunkAsync(Guid captureId, int chunkNo, byte[] content, CancellationToken ct = default)
+    /// <summary>A re-sent chunk is <see cref="ChunkResult.Duplicate"/>: acknowledged, not stored twice.</summary>
+    public async Task<ChunkResult> PutChunkAsync(Guid captureId, int chunkNo, byte[] content, CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
         try
@@ -70,11 +75,15 @@ public sealed class NotesService
                 INSERT INTO notes.capture_chunk (capture_id, chunk_no, content, received_at)
                 VALUES (@captureId, @chunkNo, @content, @now)
                 """, new { captureId, chunkNo, content, now = _clock.GetUtcNow() }, cancellationToken: ct));
-            return true;
+            return ChunkResult.Stored;
         }
         catch (SqlException ex) when (ex.Number is 2627 or 2601)
         {
-            return false;
+            return ChunkResult.Duplicate;
+        }
+        catch (SqlException ex) when (ex.Number == 547)   // FK: no such capture
+        {
+            return ChunkResult.UnknownCapture;
         }
     }
 
@@ -146,8 +155,14 @@ public sealed class NotesService
     /// Signs the version the provider reviewed. The signature and the pending
     /// chart write commit together: there is no moment when a note is signed but
     /// nothing is on its way to the chart.
+    ///
+    /// A draft from the local fallback model can be signed only when the request
+    /// says the provider acknowledged that. Enforced here rather than in the
+    /// screen, so no client -- including one written later by someone else -- can
+    /// let a weaker draft through on a single click.
     /// </summary>
-    public async Task<EditOutcome> SignAsync(Guid noteId, int version, string actor, CancellationToken ct = default)
+    public async Task<EditOutcome> SignAsync(Guid noteId, int version, string actor,
+                                             bool acknowledgedLocalDraft = false, CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
@@ -158,13 +173,20 @@ public sealed class NotesService
         if (!NoteState.IsEditable(note.State)) return new EditOutcome(EditResult.NotEditable, note.CurrentVersion, note.State);
         if (note.CurrentVersion != version) return new EditOutcome(EditResult.Conflict, note.CurrentVersion, note.State);
 
+        var source = await conn.ExecuteScalarAsync<string>(new CommandDefinition(
+            "SELECT source FROM notes.note_version WHERE note_id = @noteId AND version = @version",
+            new { noteId, version }, tx, cancellationToken: ct));
+        if (source?.StartsWith("local:") == true && !acknowledgedLocalDraft)
+            return new EditOutcome(EditResult.LocalDraftNotAcknowledged, note.CurrentVersion, note.State);
+
         await conn.ExecuteAsync(new CommandDefinition("""
             INSERT INTO notes.signature (note_id, version, signed_by, signed_at) VALUES (@noteId, @version, @actor, @now);
             UPDATE notes.note SET state = 'signed', updated_at = @now WHERE note_id = @noteId;
             INSERT INTO notes.chart_write (item_id, note_id, practice_id, kind, state, attempts, run_after)
             VALUES (@noteId, @noteId, @practiceId, 'NOTE', 'pending', 0, @now);
             """, new { noteId, version, actor, now, practiceId = note.PracticeId }, tx, cancellationToken: ct));
-        await Audit.WriteAsync(conn, tx, noteId, now, actor, "signed", $"v{version}", ct);
+        await Audit.WriteAsync(conn, tx, noteId, now, actor, "signed",
+            $"v{version}{(source?.StartsWith("local:") == true ? " local draft acknowledged" : "")}", ct);
         await tx.CommitAsync(ct);
         return new EditOutcome(EditResult.Saved, version, NoteState.Signed);
     }
@@ -188,6 +210,23 @@ public sealed class NotesService
         await Audit.WriteAsync(conn, tx, noteId, now, actor, "addendum", null, ct);
         await tx.CommitAsync(ct);
         return addendumId;
+    }
+
+    /// <summary>A practice's notes in the given states, oldest first: the review queue.</summary>
+    public async Task<IReadOnlyList<QueueItem>> ListAsync(string practiceId, IReadOnlyList<string> states,
+                                                          CancellationToken ct = default)
+    {
+        await using var conn = await OpenAsync(ct);
+        var rows = await conn.QueryAsync<QueueRow>(new CommandDefinition("""
+            SELECT n.note_id AS NoteId, n.patient_id AS PatientId, n.appt_id AS ApptId, n.provider_cd AS ProviderCode,
+                   n.state AS State, v.source AS CurrentSource, n.updated_at AS UpdatedAt
+              FROM notes.note n
+              LEFT JOIN notes.note_version v ON v.note_id = n.note_id AND v.version = n.current_version
+             WHERE n.practice_id = @practiceId AND n.state IN @states
+             ORDER BY n.updated_at
+            """, new { practiceId, states }, cancellationToken: ct));
+        return rows.Select(r => new QueueItem(r.NoteId, r.PatientId, r.ApptId, r.ProviderCode.Trim(), r.State,
+                                              r.CurrentSource, r.UpdatedAt)).ToList();
     }
 
     public async Task<NoteView?> GetAsync(Guid noteId, CancellationToken ct = default)
@@ -231,6 +270,17 @@ public sealed class NotesService
         public string PracticeId { get; init; } = "";
         public string State { get; init; } = "";
         public int? CurrentVersion { get; init; }
+    }
+
+    private sealed record QueueRow
+    {
+        public Guid NoteId { get; init; }
+        public int PatientId { get; init; }
+        public int? ApptId { get; init; }
+        public string ProviderCode { get; init; } = "";
+        public string State { get; init; } = "";
+        public string? CurrentSource { get; init; }
+        public DateTimeOffset UpdatedAt { get; init; }
     }
 
     private sealed record ViewRow
