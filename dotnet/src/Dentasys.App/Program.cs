@@ -15,8 +15,11 @@ var argv = args.ToList();
 if (argv.FirstOrDefault() == "notes")
 {
     var notesUrl = Environment.GetEnvironmentVariable("DENTASYS_NOTES_URL") ?? "http://localhost:5181/";
-    return await NotesCommand.RunAsync(argv.Skip(1).ToList(),
-        new NotesApiClient(new HttpClient { BaseAddress = new Uri(notesUrl) }));
+    var notesHttp = new HttpClient { BaseAddress = new Uri(notesUrl) };
+    // The signed-in clinician's token. In the real client this comes from their sign-in, not an environment variable.
+    notesHttp.DefaultRequestHeaders.Authorization = new("Bearer",
+        Environment.GetEnvironmentVariable("DENTASYS_NOTES_TOKEN") ?? throw new InvalidOperationException("set DENTASYS_NOTES_TOKEN"));
+    return await NotesCommand.RunAsync(argv.Skip(1).ToList(), new NotesApiClient(notesHttp));
 }
 
 bool Flag(string name)

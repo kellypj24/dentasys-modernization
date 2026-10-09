@@ -25,6 +25,9 @@ public sealed class NotesLifecycleTests
         _chart = new ChartWriter(db.Options, _clock);
     }
 
+    private static readonly Clinician DrLee = new("dr.lee", "DDS1");     // the provider the visits are recorded under
+    private static readonly Clinician DrKim = new("dr.kim", "DDS2");     // another dentist at the practice
+
     private JobRunner Runner(bool withLocal) => new(_db.Options, new FixtureTranscriber(), _cloud, withLocal ? _local : null, _clock);
 
     [Fact]
@@ -38,9 +41,9 @@ public sealed class NotesLifecycleTests
         Assert.Equal("cloud:test", note.CurrentSource);
 
         var edit = await _service.SaveEditAsync(id, note.CurrentVersion!.Value,
-            note.Current! with { ChiefComplaint = "decay #19, edited" }, "dr.lee");
+            note.Current! with { ChiefComplaint = "decay #19, edited" }, DrLee);
         Assert.Equal(EditResult.Saved, edit.Result);
-        Assert.Equal(EditResult.Saved, (await _service.SignAsync(id, edit.Version!.Value, "dr.lee")).Result);
+        Assert.Equal(EditResult.Saved, (await _service.SignAsync(id, edit.Version!.Value, DrLee)).Result);
 
         Assert.Equal(1, await _chart.RunUntilIdleAsync());
         Assert.Equal(NoteState.Charted, (await _service.GetAsync(id))!.State);
@@ -137,7 +140,7 @@ public sealed class NotesLifecycleTests
         await runner.RunUntilIdleAsync();
 
         var local = (await _service.GetAsync(id))!;
-        await _service.SaveEditAsync(id, local.CurrentVersion!.Value, local.Current! with { ChiefComplaint = "mine" }, "dr.lee");
+        await _service.SaveEditAsync(id, local.CurrentVersion!.Value, local.Current! with { ChiefComplaint = "mine" }, DrLee);
 
         _cloud.Down = false;
         _clock.Advance(_db.Options.RetryCap);
@@ -158,8 +161,8 @@ public sealed class NotesLifecycleTests
         await runner.RunUntilIdleAsync();
 
         var local = (await _service.GetAsync(id))!;
-        Assert.Equal(EditResult.LocalDraftNotAcknowledged, (await _service.SignAsync(id, local.CurrentVersion!.Value, "dr.lee")).Result);
-        Assert.Equal(EditResult.Saved, (await _service.SignAsync(id, local.CurrentVersion!.Value, "dr.lee", acknowledgedLocalDraft: true)).Result);
+        Assert.Equal(EditResult.LocalDraftNotAcknowledged, (await _service.SignAsync(id, local.CurrentVersion!.Value, DrLee)).Result);
+        Assert.Equal(EditResult.Saved, (await _service.SignAsync(id, local.CurrentVersion!.Value, DrLee, acknowledgedLocalDraft: true)).Result);
 
         _cloud.Down = false;
         _clock.Advance(_db.Options.RetryCap);
@@ -179,13 +182,13 @@ public sealed class NotesLifecycleTests
         await Runner(false).RunUntilIdleAsync();
         var v1 = (await _service.GetAsync(id))!;
 
-        var first = await _service.SaveEditAsync(id, v1.CurrentVersion!.Value, v1.Current! with { ChiefComplaint = "a" }, "dr.lee");
-        var second = await _service.SaveEditAsync(id, v1.CurrentVersion!.Value, v1.Current! with { ChiefComplaint = "b" }, "dr.kim");
+        var first = await _service.SaveEditAsync(id, v1.CurrentVersion!.Value, v1.Current! with { ChiefComplaint = "a" }, DrLee);
+        var second = await _service.SaveEditAsync(id, v1.CurrentVersion!.Value, v1.Current! with { ChiefComplaint = "b" }, DrKim);
 
         Assert.Equal(EditResult.Saved, first.Result);
         Assert.Equal(EditResult.Conflict, second.Result);
         Assert.Equal("a", (await _service.GetAsync(id))!.Current!.ChiefComplaint);
-        Assert.Equal(EditResult.Conflict, (await _service.SignAsync(id, v1.CurrentVersion!.Value, "dr.kim")).Result);
+        Assert.Equal(EditResult.Conflict, (await _service.SignAsync(id, v1.CurrentVersion!.Value, DrLee)).Result);
     }
 
     [Fact]
@@ -194,16 +197,16 @@ public sealed class NotesLifecycleTests
         var id = await _db.CaptureAsync(_service, NotesDb.Upgraded);
         await Runner(false).RunUntilIdleAsync();
         var note = (await _service.GetAsync(id))!;
-        await _service.SignAsync(id, note.CurrentVersion!.Value, "dr.lee");
+        await _service.SignAsync(id, note.CurrentVersion!.Value, DrLee);
 
         Assert.Equal(EditResult.NotEditable,
-            (await _service.SaveEditAsync(id, note.CurrentVersion!.Value, note.Current!, "dr.lee")).Result);
+            (await _service.SaveEditAsync(id, note.CurrentVersion!.Value, note.Current!, DrLee)).Result);
 
-        var addendum = await _service.AddAddendumAsync(id, "Patient called: sensitivity resolved.", "dr.lee");
-        Assert.NotNull(addendum);
+        var addendum = await _service.AddAddendumAsync(id, "Patient called: sensitivity resolved.", DrLee);
+        Assert.Equal(EditResult.Saved, addendum.Result);
         Assert.Equal(2, await _chart.RunUntilIdleAsync());
         Assert.Equal(id, _db.PracticeScalar<Guid>(NotesDb.Upgraded,
-            "SELECT PARENT_NOTE_ID FROM CLINICAL_NOTE WHERE NOTE_ID = @addendum", new { addendum }));
+            "SELECT PARENT_NOTE_ID FROM CLINICAL_NOTE WHERE NOTE_ID = @addendum", new { addendum = addendum.AddendumId }));
     }
 
     [Fact]
@@ -212,7 +215,7 @@ public sealed class NotesLifecycleTests
         var id = await _db.CaptureAsync(_service, NotesDb.NotUpgraded);
         await Runner(false).RunUntilIdleAsync();
         var note = (await _service.GetAsync(id))!;
-        await _service.SignAsync(id, note.CurrentVersion!.Value, "dr.lee");
+        await _service.SignAsync(id, note.CurrentVersion!.Value, DrLee);
 
         await _chart.RunUntilIdleAsync();
         Assert.Equal(NoteState.Signed, (await _service.GetAsync(id))!.State);
@@ -242,7 +245,7 @@ public sealed class NotesLifecycleTests
     {
         var id = await _db.CaptureAsync(_service, NotesDb.Upgraded);
         await Runner(false).RunUntilIdleAsync();
-        await _service.SignAsync(id, (await _service.GetAsync(id))!.CurrentVersion!.Value, "dr.lee");
+        await _service.SignAsync(id, (await _service.GetAsync(id))!.CurrentVersion!.Value, DrLee);
 
         // The worker writes the row and dies before marking it delivered...
         var row = await _chart.LoadAsync(id);
@@ -282,7 +285,7 @@ public sealed class NotesLifecycleTests
     {
         var id = await _db.CaptureAsync(_service, NotesDb.Upgraded);
         await Runner(false).RunUntilIdleAsync();
-        await _service.SignAsync(id, (await _service.GetAsync(id))!.CurrentVersion!.Value, "dr.lee");
+        await _service.SignAsync(id, (await _service.GetAsync(id))!.CurrentVersion!.Value, DrLee);
 
         // Two workers race for the same outbox row: only one claim succeeds.
         var a = new ChartWriter(_db.Options, _clock);
@@ -297,7 +300,7 @@ public sealed class NotesLifecycleTests
     {
         var id = await _db.CaptureAsync(_service, NotesDb.Upgraded);
         await Runner(false).RunUntilIdleAsync();
-        await _service.SignAsync(id, (await _service.GetAsync(id))!.CurrentVersion!.Value, "dr.lee");
+        await _service.SignAsync(id, (await _service.GetAsync(id))!.CurrentVersion!.Value, DrLee);
         await _chart.RunUntilIdleAsync();
 
         var details = _db.Scalar<string>(
@@ -306,6 +309,50 @@ public sealed class NotesLifecycleTests
         Assert.Contains("charted", details);
         Assert.DoesNotContain("nineteen", details);
         Assert.DoesNotContain("cloud draft", details);
+    }
+
+    [Fact]
+    public async Task Only_the_notes_provider_can_sign_it_or_amend_it()
+    {
+        var id = await _db.CaptureAsync(_service, NotesDb.Upgraded);
+        await Runner(false).RunUntilIdleAsync();
+        var note = (await _service.GetAsync(id))!;
+
+        // Another dentist may edit the draft, but not attest to it.
+        var edited = await _service.SaveEditAsync(id, note.CurrentVersion!.Value, note.Current! with { ChiefComplaint = "kim" }, DrKim);
+        Assert.Equal(EditResult.Saved, edited.Result);
+        Assert.Equal(EditResult.NotNoteProvider, (await _service.SignAsync(id, edited.Version!.Value, DrKim)).Result);
+
+        Assert.Equal(EditResult.Saved, (await _service.SignAsync(id, edited.Version!.Value, DrLee)).Result);
+        Assert.Equal(EditResult.NotNoteProvider, (await _service.AddAddendumAsync(id, "kim's note", DrKim)).Result);
+        await _chart.RunUntilIdleAsync();
+    }
+
+    [Fact]
+    public async Task Unclear_speech_reaches_the_draft_as_a_review_flag_whatever_the_model_wrote()
+    {
+        var id = Guid.NewGuid();
+        await _service.RegisterCaptureAsync(new CaptureRegistration(id, NotesDb.Upgraded, 41701, null, "DDS1", true));
+        var chunks = FixtureTranscriber.ToChunks([
+            new("DENTIST", "Let's look at the upper left."),
+            new("DENTIST", "Number [inaudible] has a crack line on the distal marginal ridge."),
+        ], chunkBytes: 64);
+        for (var i = 0; i < chunks.Count; i++) await _service.PutChunkAsync(id, i, chunks[i]);
+        await _service.CompleteUploadAsync(id, chunks.Count);
+        await Runner(false).RunUntilIdleAsync();
+
+        // The fake drafter returns no flags at all; the flag comes from the transcript.
+        var flags = (await _service.GetAsync(id))!.Current!.ReviewFlags;
+        Assert.Contains(flags, f => f.Contains("Unclear speech at 00:03") && f.Contains("[inaudible]"));
+    }
+
+    [Fact]
+    public async Task A_capture_in_an_audio_format_the_transcriber_cannot_read_is_refused_at_registration()
+    {
+        var id = Guid.NewGuid();
+        await Assert.ThrowsAsync<UnsupportedAudioFormatException>(() => _service.RegisterCaptureAsync(
+            new CaptureRegistration(id, NotesDb.Upgraded, 41701, null, "DDS1", true, AudioFormat: "audio/x-unknown")));
+        Assert.Null(await _service.GetAsync(id));
     }
 
     private static string RepoRoot()

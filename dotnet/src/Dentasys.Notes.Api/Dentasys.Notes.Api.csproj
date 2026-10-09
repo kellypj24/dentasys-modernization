@@ -5,4 +5,7 @@
     <ProjectReference Include="../Dentasys.Notes/Dentasys.Notes.csproj" />
     <ProjectReference Include="../Dentasys.Notetaker.Claude/Dentasys.Notetaker.Claude.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+  </ItemGroup>
 </Project>

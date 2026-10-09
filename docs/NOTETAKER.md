@@ -94,6 +94,40 @@ domain events. The notetaker does not need a new consistency mechanism.
 | Notes store | Captures, jobs, transcripts, draft versions, signatures, audit | One central multi-tenant database in the data center, keyed by `practice_id` | Available whenever the data center is. Designed migration-ready: no procs, types that map cleanly to Postgres. |
 | `CLINICAL_NOTE` in each practice DB | Signed notes and addenda only | SQL Server, new table in the next schema version | The chart stays complete in the legal record, its backups and exports. |
 
+## Identity
+
+Every call to the notes service carries a JWT bearer token with four claims:
+`sub`, `role` (`clinician` or `capture_agent`), `practice`, and for clinicians
+`prov_cd`. Production tokens come from the company's identity provider (Entra
+ID, or AD through a token service) via `Notes:Auth:Authority`; the lab mints its
+own. With neither configured the service refuses to start.
+
+| Rule | Enforced by |
+|---|---|
+| A capture agent uploads only for the practice in its token | API |
+| A clinician sees and edits only their own practice's notes | API |
+| Only the provider a visit was recorded under signs or amends it | Notes service |
+| Who edited or signed comes from the token, never the request body | API |
+| A local-model draft is signed only with an explicit acknowledgement | Notes service |
+
+The capture agent authenticates as the workstation, not as whoever is signed in
+at that desk: it has to upload while nobody is.
+
+## Transcription contract
+
+`ITranscriber` takes the audio and the format the agent declared at
+registration, and returns diarized segments: speaker, start and end time, text,
+and the engine's confidence. Formats the configured engine cannot read are
+refused at registration, before any audio is uploaded.
+
+Segments under 0.6 confidence reach the drafter marked as unclear, and the
+service adds a review flag to every draft of that visit naming the time and
+speaker. The provider is told about an inaudible tooth number whether or not the
+model noticed it.
+
+The lab's `FixtureTranscriber` returns this shape from synthetic visits; a cloud
+speech service replaces it behind the same interface.
+
 ## PHI handling
 
 - Audio and transcripts are PHI everywhere: encrypted on the workstation, in
@@ -152,3 +186,9 @@ integration.
    which American model on it?
 7. What connects the data center to the cloud today (VPN, ExpressRoute, Direct
    Connect), and how often does it drop?
+8. Speaker roles: a diarizer returns "Speaker 1, Speaker 2". Attributing those
+   to dentist, hygienist and patient needs voice enrollment, operatory context
+   (who is scheduled in that chair), or the model inferring it. Which is
+   acceptable?
+9. Which identity provider issues the tokens, and how do provider codes map to
+   accounts?

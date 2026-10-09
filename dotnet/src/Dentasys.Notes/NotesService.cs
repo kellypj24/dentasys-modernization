@@ -6,7 +6,14 @@ using Microsoft.Data.SqlClient;
 namespace Dentasys.Notes;
 
 public sealed record CaptureRegistration(
-    Guid CaptureId, string PracticeId, int PatientId, int? ApptId, string ProviderCode, bool ConsentRecorded);
+    Guid CaptureId, string PracticeId, int PatientId, int? ApptId, string ProviderCode, bool ConsentRecorded,
+    string AudioFormat = FixtureTranscriber.Format);
+
+/// <summary>An authenticated clinician: who they are, and which provider code they sign as.</summary>
+public sealed record Clinician(string UserId, string ProviderCode);
+
+public sealed class UnsupportedAudioFormatException(string format)
+    : Exception($"audio format '{format}' is not one the transcriber accepts");
 
 public sealed record UploadOutcome(bool Complete, IReadOnlyList<int> MissingChunks);
 
@@ -15,8 +22,9 @@ public enum ChunkResult { Stored, Duplicate, UnknownCapture }
 public sealed record QueueItem(Guid NoteId, int PatientId, int? ApptId, string ProviderCode, string State,
                                string? CurrentSource, DateTimeOffset UpdatedAt);
 
-public enum EditResult { Saved, Conflict, NotEditable, NotFound, LocalDraftNotAcknowledged }
+public enum EditResult { Saved, Conflict, NotEditable, NotFound, LocalDraftNotAcknowledged, NotNoteProvider }
 public sealed record EditOutcome(EditResult Result, int? Version, string? State);
+public sealed record AddendumOutcome(EditResult Result, Guid? AddendumId);
 
 public sealed record NoteView(
     Guid NoteId, string PracticeId, string State, int? CurrentVersion, string? CurrentSource,
@@ -44,6 +52,9 @@ public sealed class NotesService
     {
         if (!r.ConsentRecorded)
             throw new InvalidOperationException("no consent recorded for this visit; nothing may be stored");
+        // Refused now, not at transcription: audio nobody can read should not be
+        // uploaded, stored and retried for hours first.
+        if (!_options.AudioFormats.Contains(r.AudioFormat)) throw new UnsupportedAudioFormatException(r.AudioFormat);
 
         await using var conn = await OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
@@ -55,11 +66,12 @@ public sealed class NotesService
         if (exists == 0)
         {
             await conn.ExecuteAsync(new CommandDefinition("""
-                INSERT INTO notes.capture (capture_id, practice_id, patient_id, appt_id, provider_cd, started_at)
-                VALUES (@CaptureId, @PracticeId, @PatientId, @ApptId, @ProviderCode, @now);
+                INSERT INTO notes.capture (capture_id, practice_id, patient_id, appt_id, provider_cd, audio_format, started_at)
+                VALUES (@CaptureId, @PracticeId, @PatientId, @ApptId, @ProviderCode, @AudioFormat, @now);
                 INSERT INTO notes.note (note_id, practice_id, patient_id, appt_id, provider_cd, state, updated_at)
                 VALUES (@CaptureId, @PracticeId, @PatientId, @ApptId, @ProviderCode, 'awaiting_audio', @now);
-                """, new { r.CaptureId, r.PracticeId, r.PatientId, r.ApptId, r.ProviderCode, now }, tx, cancellationToken: ct));
+                """, new { r.CaptureId, r.PracticeId, r.PatientId, r.ApptId, r.ProviderCode, r.AudioFormat, now },
+                tx, cancellationToken: ct));
             await Audit.WriteAsync(conn, tx, r.CaptureId, now, "capture-agent", "capture_registered", null, ct);
         }
         await tx.CommitAsync(ct);
@@ -130,7 +142,7 @@ public sealed class NotesService
     /// editing the current one. A stale base means someone (or a late cloud draft)
     /// changed it in the meantime, and silently overwriting either is wrong.
     /// </summary>
-    public async Task<EditOutcome> SaveEditAsync(Guid noteId, int baseVersion, ClinicalNoteDraft draft, string actor,
+    public async Task<EditOutcome> SaveEditAsync(Guid noteId, int baseVersion, ClinicalNoteDraft draft, Clinician by,
                                                  CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
@@ -142,11 +154,11 @@ public sealed class NotesService
         if (!NoteState.IsEditable(note.State)) return new EditOutcome(EditResult.NotEditable, note.CurrentVersion, note.State);
         if (note.CurrentVersion != baseVersion) return new EditOutcome(EditResult.Conflict, note.CurrentVersion, note.State);
 
-        var version = await Versions.InsertAsync(conn, tx, noteId, $"human:{actor}", draft, null, applied: true, now, ct);
+        var version = await Versions.InsertAsync(conn, tx, noteId, $"human:{by.UserId}", draft, null, applied: true, now, ct);
         await conn.ExecuteAsync(new CommandDefinition("""
             UPDATE notes.note SET current_version = @version, state = 'in_review', updated_at = @now WHERE note_id = @noteId
             """, new { noteId, version, now }, tx, cancellationToken: ct));
-        await Audit.WriteAsync(conn, tx, noteId, now, actor, "edited", $"v{version}", ct);
+        await Audit.WriteAsync(conn, tx, noteId, now, by.UserId, "edited", $"v{version}", ct);
         await tx.CommitAsync(ct);
         return new EditOutcome(EditResult.Saved, version, NoteState.InReview);
     }
@@ -161,7 +173,7 @@ public sealed class NotesService
     /// screen, so no client -- including one written later by someone else -- can
     /// let a weaker draft through on a single click.
     /// </summary>
-    public async Task<EditOutcome> SignAsync(Guid noteId, int version, string actor,
+    public async Task<EditOutcome> SignAsync(Guid noteId, int version, Clinician by,
                                              bool acknowledgedLocalDraft = false, CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
@@ -171,6 +183,8 @@ public sealed class NotesService
         var note = await LockNoteAsync(conn, tx, noteId, ct);
         if (note is null) return new EditOutcome(EditResult.NotFound, null, null);
         if (!NoteState.IsEditable(note.State)) return new EditOutcome(EditResult.NotEditable, note.CurrentVersion, note.State);
+        // The note is attested by the provider the visit was recorded under, and no one else.
+        if (!IsNoteProvider(note, by)) return new EditOutcome(EditResult.NotNoteProvider, note.CurrentVersion, note.State);
         if (note.CurrentVersion != version) return new EditOutcome(EditResult.Conflict, note.CurrentVersion, note.State);
 
         var source = await conn.ExecuteScalarAsync<string>(new CommandDefinition(
@@ -184,32 +198,34 @@ public sealed class NotesService
             UPDATE notes.note SET state = 'signed', updated_at = @now WHERE note_id = @noteId;
             INSERT INTO notes.chart_write (item_id, note_id, practice_id, kind, state, attempts, run_after)
             VALUES (@noteId, @noteId, @practiceId, 'NOTE', 'pending', 0, @now);
-            """, new { noteId, version, actor, now, practiceId = note.PracticeId }, tx, cancellationToken: ct));
-        await Audit.WriteAsync(conn, tx, noteId, now, actor, "signed",
+            """, new { noteId, version, actor = by.UserId, now, practiceId = note.PracticeId }, tx, cancellationToken: ct));
+        await Audit.WriteAsync(conn, tx, noteId, now, by.UserId, "signed",
             $"v{version}{(source?.StartsWith("local:") == true ? " local draft acknowledged" : "")}", ct);
         await tx.CommitAsync(ct);
         return new EditOutcome(EditResult.Saved, version, NoteState.Signed);
     }
 
     /// <summary>The only way to change a signed note: a separately signed addendum, also sent to the chart.</summary>
-    public async Task<Guid?> AddAddendumAsync(Guid noteId, string text, string actor, CancellationToken ct = default)
+    public async Task<AddendumOutcome> AddAddendumAsync(Guid noteId, string text, Clinician by, CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
         var now = _clock.GetUtcNow();
 
         var note = await LockNoteAsync(conn, tx, noteId, ct);
-        if (note is null || !NoteState.IsSigned(note.State)) return null;
+        if (note is null) return new AddendumOutcome(EditResult.NotFound, null);
+        if (!NoteState.IsSigned(note.State)) return new AddendumOutcome(EditResult.NotEditable, null);
+        if (!IsNoteProvider(note, by)) return new AddendumOutcome(EditResult.NotNoteProvider, null);
 
         var addendumId = Guid.NewGuid();
         await conn.ExecuteAsync(new CommandDefinition("""
             INSERT INTO notes.addendum (addendum_id, note_id, text, signed_by, signed_at) VALUES (@addendumId, @noteId, @text, @actor, @now);
             INSERT INTO notes.chart_write (item_id, note_id, practice_id, kind, state, attempts, run_after)
             VALUES (@addendumId, @noteId, @practiceId, 'ADDENDUM', 'pending', 0, @now);
-            """, new { addendumId, noteId, text, actor, now, practiceId = note.PracticeId }, tx, cancellationToken: ct));
-        await Audit.WriteAsync(conn, tx, noteId, now, actor, "addendum", null, ct);
+            """, new { addendumId, noteId, text, actor = by.UserId, now, practiceId = note.PracticeId }, tx, cancellationToken: ct));
+        await Audit.WriteAsync(conn, tx, noteId, now, by.UserId, "addendum", null, ct);
         await tx.CommitAsync(ct);
-        return addendumId;
+        return new AddendumOutcome(EditResult.Saved, addendumId);
     }
 
     /// <summary>A practice's notes in the given states, oldest first: the review queue.</summary>
@@ -256,9 +272,24 @@ public sealed class NotesService
         return conn;
     }
 
+    private static bool IsNoteProvider(LockedNote note, Clinician by) =>
+        string.Equals(note.ProviderCode.Trim(), by.ProviderCode.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The practice and provider a note belongs to, for authorization; null if there is no such note.</summary>
+    public async Task<(string PracticeId, string ProviderCode)?> OwnerAsync(Guid noteOrCaptureId, CancellationToken ct = default)
+    {
+        await using var conn = await OpenAsync(ct);
+        var row = await conn.QuerySingleOrDefaultAsync<LockedNote>(new CommandDefinition("""
+            SELECT capture_id AS NoteId, practice_id AS PracticeId, provider_cd AS ProviderCode
+              FROM notes.capture WHERE capture_id = @noteOrCaptureId
+            """, new { noteOrCaptureId }, cancellationToken: ct));
+        return row is null ? null : (row.PracticeId.Trim(), row.ProviderCode.Trim());
+    }
+
     internal static Task<LockedNote?> LockNoteAsync(SqlConnection conn, SqlTransaction tx, Guid noteId, CancellationToken ct) =>
         conn.QuerySingleOrDefaultAsync<LockedNote>(new CommandDefinition("""
-            SELECT note_id AS NoteId, practice_id AS PracticeId, state AS State, current_version AS CurrentVersion
+            SELECT note_id AS NoteId, practice_id AS PracticeId, provider_cd AS ProviderCode, state AS State,
+                   current_version AS CurrentVersion
               FROM notes.note WITH (UPDLOCK, ROWLOCK) WHERE note_id = @noteId
             """, new { noteId }, tx, cancellationToken: ct));
 
@@ -268,6 +299,7 @@ public sealed class NotesService
     {
         public Guid NoteId { get; init; }
         public string PracticeId { get; init; } = "";
+        public string ProviderCode { get; init; } = "";
         public string State { get; init; } = "";
         public int? CurrentVersion { get; init; }
     }

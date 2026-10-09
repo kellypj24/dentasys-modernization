@@ -33,7 +33,7 @@ public sealed class CaptureToChartTests : IDisposable
     {
         var id = NotesApiHost.Record(_spool, NotesApiHost.Visit);
 
-        var report = await new Uploader(_spool, _host.Http()).DrainAsync();
+        var report = await new Uploader(_spool, _host.AgentHttp()).DrainAsync();
         Assert.Equal(1, report.CapturesCompleted);
         Assert.Empty(_spool.Captures());
 
@@ -48,7 +48,7 @@ public sealed class CaptureToChartTests : IDisposable
         Assert.Equal("cloud draft", note.Draft!.ChiefComplaint);
         Assert.Contains("cloud draft", note.Text);
 
-        Assert.Equal(SignStatus.Signed, await review.SignAsync(id, note.Version!.Value, "dr.lee", acknowledgedLocalDraft: false));
+        Assert.Equal(SignStatus.Signed, await review.SignAsync(id, note.Version!.Value, acknowledgedLocalDraft: false));
         await _host.ProcessAsync();
         Assert.Equal(1, _host.ChartCount(id));
     }
@@ -63,7 +63,7 @@ public sealed class CaptureToChartTests : IDisposable
         Assert.True(offline.Offline);
         Assert.Equal(_spool.ReadManifest(id).ChunkCount, _spool.PendingChunks(id).Count);
 
-        var online = await new Uploader(_spool, _host.Http()).DrainAsync();
+        var online = await new Uploader(_spool, _host.AgentHttp()).DrainAsync();
         Assert.False(online.Offline);
         Assert.Equal(1, online.CapturesCompleted);
         Assert.Equal(1, _host.NotesScalar("SELECT COUNT(*) FROM notes.job WHERE note_id = @id AND kind = 'transcribe'", new { id }));
@@ -76,13 +76,13 @@ public sealed class CaptureToChartTests : IDisposable
         var total = _spool.ReadManifest(id).ChunkCount!.Value;
 
         // Register plus three chunks get through, then the connection dies.
-        var first = await new Uploader(_spool, _host.Http(new CutAfter(4))).DrainAsync();
+        var first = await new Uploader(_spool, _host.AgentHttp(NotesApiHost.Practice, new CutAfter(4))).DrainAsync();
         Assert.True(first.Offline);
         Assert.Equal(3, first.ChunksSent);
         Assert.Equal(total - 3, _spool.PendingChunks(id).Count);
 
         // A new agent process, same spool.
-        var second = await new Uploader(_spool, _host.Http()).DrainAsync();
+        var second = await new Uploader(_spool, _host.AgentHttp()).DrainAsync();
         Assert.Equal(total - 3, second.ChunksSent);
         Assert.Equal(1, second.CapturesCompleted);
         Assert.Equal(total, _host.NotesScalar("SELECT COUNT(*) FROM notes.capture_chunk WHERE capture_id = @id", new { id }));
@@ -109,7 +109,7 @@ public sealed class CaptureToChartTests : IDisposable
         bytes[^1] ^= 0xFF;
         File.WriteAllBytes(path, bytes);
 
-        var report = await new Uploader(_spool, _host.Http()).DrainAsync();
+        var report = await new Uploader(_spool, _host.AgentHttp()).DrainAsync();
         Assert.Contains(report.Problems, p => p.Contains("chunk 1 failed authentication"));
         Assert.Equal(0, report.CapturesCompleted);
         Assert.Equal(0, _host.NotesScalar("SELECT COUNT(*) FROM notes.capture_chunk WHERE capture_id = @id AND chunk_no = 1", new { id }));
@@ -130,12 +130,14 @@ public sealed class CaptureToChartTests : IDisposable
     {
         var id = Guid.NewGuid();
         Assert.Throws<InvalidOperationException>(() =>
-            _spool.Start(new CaptureManifest(id, NotesApiHost.Practice, 1, null, "DDS1", ConsentRecorded: false, null)));
+            _spool.Start(new CaptureManifest(id, NotesApiHost.Practice, 1, null, "DDS1", ConsentRecorded: false,
+                                             FixtureTranscriber.Format, null)));
         Assert.Empty(_spool.Captures());
 
-        var r = await _host.Http().PostAsJsonAsync("captures", new
+        var r = await _host.AgentHttp().PostAsJsonAsync("captures", new
         {
             captureId = id, practiceId = NotesApiHost.Practice, patientId = 1, providerCode = "DDS1", consentRecorded = false,
+            audioFormat = FixtureTranscriber.Format,
         });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, r.StatusCode);
     }
@@ -143,7 +145,7 @@ public sealed class CaptureToChartTests : IDisposable
     [Fact]
     public async Task A_chunk_for_a_capture_the_service_never_saw_is_refused()
     {
-        var r = await _host.Http().PutAsync($"captures/{Guid.NewGuid()}/chunks/0", new ByteArrayContent([1, 2, 3]));
+        var r = await _host.AgentHttp().PutAsync($"captures/{Guid.NewGuid()}/chunks/0", new ByteArrayContent([1, 2, 3]));
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
@@ -152,7 +154,7 @@ public sealed class CaptureToChartTests : IDisposable
     {
         _host.Cloud.Down = true;
         var id = NotesApiHost.Record(_spool, NotesApiHost.Visit);
-        await new Uploader(_spool, _host.Http()).DrainAsync();
+        await new Uploader(_spool, _host.AgentHttp()).DrainAsync();
         await _host.ProcessAsync();
 
         var review = _host.Review();
@@ -160,25 +162,25 @@ public sealed class CaptureToChartTests : IDisposable
         Assert.True(note.IsLocalDraft);
 
         Assert.Equal(SignStatus.NeedsLocalDraftAcknowledgement,
-            await review.SignAsync(id, note.Version!.Value, "dr.lee", acknowledgedLocalDraft: false));
+            await review.SignAsync(id, note.Version!.Value, acknowledgedLocalDraft: false));
         Assert.Equal(SignStatus.Signed,
-            await review.SignAsync(id, note.Version!.Value, "dr.lee", acknowledgedLocalDraft: true));
+            await review.SignAsync(id, note.Version!.Value, acknowledgedLocalDraft: true));
     }
 
     [Fact]
     public async Task Signing_a_version_someone_else_replaced_is_refused()
     {
         var id = NotesApiHost.Record(_spool, NotesApiHost.Visit);
-        await new Uploader(_spool, _host.Http()).DrainAsync();
+        await new Uploader(_spool, _host.AgentHttp()).DrainAsync();
         await _host.ProcessAsync();
 
         var review = _host.Review();
         var seen = (await review.GetAsync(id))!;
-        var edit = await _host.Http().PutAsJsonAsync($"notes/{id}/draft",
-            new { baseVersion = seen.Version, draft = seen.Draft! with { ChiefComplaint = "edited elsewhere" }, actor = "dr.kim" });
+        var edit = await _host.ClinicianHttp("dr.kim", "DDS2").PutAsJsonAsync($"notes/{id}/draft",
+            new { baseVersion = seen.Version, draft = seen.Draft! with { ChiefComplaint = "edited elsewhere" } });
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
 
         Assert.Equal(SignStatus.ChangedSinceOpened,
-            await review.SignAsync(id, seen.Version!.Value, "dr.lee", acknowledgedLocalDraft: false));
+            await review.SignAsync(id, seen.Version!.Value, acknowledgedLocalDraft: false));
     }
 }

@@ -14,6 +14,10 @@ public sealed record DrainReport(int ChunksSent, int CapturesCompleted, bool Off
 /// The first network failure ends the pass. A dead link is retried on the next
 /// timer tick, not hammered in a loop; nothing is lost in between because nothing
 /// leaves the spool until the server has acknowledged it.
+///
+/// The HttpClient carries the workstation's own token (role capture_agent, one
+/// practice). A provider's sign-in is never used for uploads: the agent runs
+/// whether or not anyone is signed in at that desk.
 /// </summary>
 public sealed class Uploader
 {
@@ -38,7 +42,7 @@ public sealed class Uploader
                 var m = _spool.ReadManifest(id);
                 (await _http.PostAsJsonAsync("captures", new
                 {
-                    m.CaptureId, m.PracticeId, m.PatientId, m.ApptId, m.ProviderCode, m.ConsentRecorded,
+                    m.CaptureId, m.PracticeId, m.PatientId, m.ApptId, m.ProviderCode, m.ConsentRecorded, m.AudioFormat,
                 }, ct)).EnsureSuccessStatusCode();
 
                 foreach (var n in _spool.PendingChunks(id))
