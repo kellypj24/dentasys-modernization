@@ -23,6 +23,7 @@ run "database_only_without_images" {
       length(azurerm_container_app_environment.lab) == 0 &&
       length(azurerm_container_app.api) == 0 &&
       length(azurerm_container_app_job.outbox) == 0 &&
+      length(azurerm_container_app_job.recall) == 0 &&
       length(azurerm_postgresql_flexible_server_firewall_rule.azure_services) == 0
     )
     error_message = "No images given, so nothing but the database should be planned."
@@ -65,5 +66,18 @@ run "environment_has_no_log_workspace" {
   assert {
     condition     = azurerm_container_app_environment.lab[0].log_analytics_workspace_id == null
     error_message = "A Log Analytics workspace bills per GB ingested."
+  }
+}
+
+run "recall_runs_once_a_day_and_exits" {
+  command = plan
+
+  assert {
+    condition     = azurerm_container_app_job.recall[0].template[0].container[0].args == tolist(["--recall"])
+    error_message = "The recall job must run the recall mode, which exits when done."
+  }
+  assert {
+    condition     = length(split(" ", azurerm_container_app_job.recall[0].schedule_trigger_config[0].cron_expression)) == 5 && !startswith(azurerm_container_app_job.recall[0].schedule_trigger_config[0].cron_expression, "*")
+    error_message = "The recall job must fire at a fixed minute, not every minute."
   }
 }

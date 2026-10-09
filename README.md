@@ -222,7 +222,8 @@ connection because it has nothing to open one with.
 - [x] **Notetaker phase 3** — notes API + workers, capture agent with encrypted resumable spool, review/sign in the client; local-model drafts need explicit acknowledgement, enforced server-side
 - [x] **Notetaker phase 4** — JWT identity (practice-scoped agents and clinicians, provider-only signing), transcription contract with confidence; unclear speech flagged by the service
 - [ ] Notetaker next — a cloud speech engine behind `ITranscriber`, speaker-role attribution, keyed Claude eval
-- [ ] Remaining two procs: `usp_NightlyRecallAndClaims` → worker, `usp_PostLedgerAndAging` → C# domain service
+- [x] **Recall run** — `usp_NightlyRecallAndClaims` (recall half) as the oracle; `RecallPolicy` + `--recall`, last-sent and outbox in one transaction; recall parity across the fleet
+- [ ] Remaining proc: `usp_PostLedgerAndAging` → C# domain service
 - [x] **Analytics** — `usp_RptProductionCollection` as the oracle; dbt on DuckDB reads PostgreSQL once and reports off it; report parity across the fleet
 - [x] Azure target in Terraform — Postgres Flexible Server, free-tier SKUs asserted by `terraform test` (`infra/README.md`)
 - [x] Azure apps in Terraform — API scales to zero, outbox worker is a scheduled job (`--once`); images smoke-tested locally
@@ -264,7 +265,7 @@ legacy/              SQL Server. 1997 data model, current engine, defects intact
   01_schema.sql
   02_seed.sql          one practice, synthetic, every row tied to a landmine
   03_seed_fleet.sql    24 databases that disagree with each other
-  procs/               the oracles, not dependencies: schedule and production report
+  procs/               the oracles, not dependencies: schedule, production report, recall
   notes/               DENTASYS_NOTES, the notes service's store
   upgrades/            07.04.00 CLINICAL_NOTE, installed per practice in its upgrade window
 
@@ -601,6 +602,27 @@ is a decision to announce, not a side effect of migrating.
 DuckDB reads PostgreSQL once per `dbt build`, into staging tables. The report,
 `just report` and the parity test read the DuckDB file and never open a connection
 to the transactional store.
+
+## The recall run
+
+`usp_NightlyRecallAndClaims` is the 2 AM SQL Agent job. Only its recall half is
+simulated; the claims half reads tables this lab does not model. The selection
+rules move to `RecallPolicy` in C#, and `dentasys-worker --recall` runs them
+nightly: per practice, one transaction stamps `last_sent_on` and writes a
+`RecallDue` event to the outbox, then the run drains it. Running twice in one
+night sends nothing the second time.
+
+Recall parity runs the proc (in a rolled-back transaction, because it stamps
+rows) and the policy for every practice on four nights chosen to cross each rule.
+Two differences are claimed, both behavior changes somebody has to announce:
+
+| Rule | What changes |
+|---|---|
+| `two_digit_year_resolved_by_dob` | `DUE_YM '5103'` is 1951 under the 1999 pivot, so the legacy job mails a seven-year-old's 2051 recall every 30 days. The migration takes the next century when the pivot lands before the patient's date of birth, and logs each one (#5). |
+| `cancelled_recall_honored` | `RECALL.DEL_FLG` arrived in 07.02.11 and the job never read it. Cancelled recalls stop going out at the 11 practices that can cancel one. |
+
+Shifting the due-month comparison by one month produces 24 regressions, so the
+rules bound what they claim rather than muting the field.
 
 ## Writes
 

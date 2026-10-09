@@ -1,3 +1,5 @@
+using Dentasys.Domain;
+
 namespace Dentasys.Parity;
 
 /// <summary>
@@ -113,4 +115,38 @@ public sealed class RuleBook
                 legacy is decimal l && modern is decimal m && Math.Abs(l - m) < 0.005m,
         })
         .ToList());
+
+    /// <summary>
+    /// The rules for the nightly recall run. Both claim only "legacy sent it, modern
+    /// did not", and only for the specific reason named -- a recall the modern side
+    /// skips as SentRecently or NotDue for any other cause is still a regression.
+    /// </summary>
+    public static RuleBook ForRecall() => new(new List<DivergenceRule>
+    {
+        new()
+        {
+            Name = "two_digit_year_resolved_by_dob",
+            Field = "Sent",
+            Disposition = Disposition.ExpectedDivergence,
+            Rationale =
+                "The legacy job reads DUE_YM through the 1999 pivot, so a 2051 pediatric recall " +
+                "is 1951 and 75 years overdue (LANDMINE #5). The migration resolved the century " +
+                "against the patient's date of birth; the modern run does not send it yet.",
+            Claims = (legacy, modern) =>
+                legacy is true
+                && modern is RecallVerdict { Outcome: RecallOutcome.NotDue, Facts.DueYearFromEvidence: true },
+        },
+        new()
+        {
+            Name = "cancelled_recall_honored",
+            Field = "Sent",
+            Disposition = Disposition.ExpectedDivergence,
+            Rationale =
+                "RECALL.DEL_FLG arrived in 07.02.11 and the nightly job was never updated to read " +
+                "it, so a recall cancelled at the front desk still goes out once due. The modern " +
+                "run skips it. A behavior change for the practices on 07.02.11 and later.",
+            Claims = (legacy, modern) =>
+                legacy is true && modern is RecallVerdict { Outcome: RecallOutcome.RecallCancelled },
+        },
+    });
 }

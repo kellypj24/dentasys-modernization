@@ -3,6 +3,8 @@
 #
 #   api     scales to zero; ingress admits operator_ip only, so nothing else can
 #           wake it.
+#   recall  the nightly recall run (`--recall`), once a day. Replaces the 2 AM
+#           SQL Agent job; drains what it enqueued before exiting.
 #   worker  a scheduled job, not an always-on app. A 2-second poller running all
 #           month uses ~650k vCPU-seconds at 0.25 vCPU, over three times the free
 #           grant. A job running `--once` every 5 minutes uses a few percent of it.
@@ -119,6 +121,44 @@ resource "azurerm_container_app_job" "outbox" {
       name   = "outbox"
       image  = var.worker_image
       args   = ["--once"]
+      cpu    = 0.25
+      memory = "0.5Gi"
+
+      env {
+        name        = "DENTASYS_TARGET_CONNECTION"
+        secret_name = "target-connection"
+      }
+    }
+  }
+}
+
+resource "azurerm_container_app_job" "recall" {
+  count = local.deploy_apps ? 1 : 0
+
+  name                         = "recall-${random_string.suffix.result}"
+  location                     = azurerm_resource_group.lab.location
+  resource_group_name          = azurerm_resource_group.lab.name
+  container_app_environment_id = azurerm_container_app_environment.lab[0].id
+  replica_timeout_in_seconds   = 600
+  replica_retry_limit          = 1
+  tags                         = local.tags
+
+  schedule_trigger_config {
+    cron_expression          = var.recall_cron
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  secret {
+    name  = "target-connection"
+    value = local.target_connection
+  }
+
+  template {
+    container {
+      name   = "recall"
+      image  = var.worker_image
+      args   = ["--recall"]
       cpu    = 0.25
       memory = "0.5Gi"
 

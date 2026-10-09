@@ -172,7 +172,7 @@ CREATE INDEX appointment_practice_local_idx ON dentasys.appointment (practice_id
 CREATE TABLE dentasys.migration_exception (
     exception_id  bigserial PRIMARY KEY,
     practice_id   text NOT NULL,
-    entity        text NOT NULL,   -- 'practice' | 'appointment' | 'ledger_entry'
+    entity        text NOT NULL,   -- 'practice' | 'appointment' | 'ledger_entry' | 'recall'
     entity_key    text,
     kind          text NOT NULL,
     detail        text NOT NULL,
@@ -243,6 +243,14 @@ CREATE TABLE landing_.ledger (
     amt text, ins_est_amt text, paid_amt text,   -- FLOAT, full precision (#2)
     applied_to text, post_dtm text, del_flg text,
     PRIMARY KEY (prac_id, tran_id)
+);
+
+CREATE TABLE landing_.recall (
+    prac_id text NOT NULL, recall_id text NOT NULL, pat_id text,
+    recall_type text,
+    due_ym text,              -- YYMM. Two-digit year. See LANDMINE #5.
+    last_sent_dt text, del_flg text,
+    PRIMARY KEY (prac_id, recall_id)
 );
 
 /*------------------------------------------------------------------------------
@@ -346,6 +354,34 @@ CREATE TABLE dentasys.ledger_entry (
     posted_local         timestamp,        -- wall clock, like everything else in the source
     is_deleted           boolean NOT NULL,
     PRIMARY KEY (practice_id, ledger_entry_id)
+);
+
+/*------------------------------------------------------------------------------
+  recall
+
+  due_month is a real date (the first of the month), resolved from a two-digit
+  year (LANDMINE #5). due_ym_raw keeps the original so the resolution can be
+  re-run or audited, and due_year_source records which rule decided the century:
+
+    legacy_pivot   the 1999 window (< 50 -> 20xx), when nothing contradicts it
+    patient_dob    the window put the recall before the patient was born, which
+                   is impossible, so the next century was taken instead
+
+  A 1999 pivot that is wrong cannot be detected by looking at the YYMM alone.
+  It can be detected against another column, which is the general shape of
+  every fix in this migration.
+------------------------------------------------------------------------------*/
+CREATE TABLE dentasys.recall (
+    practice_id     text NOT NULL REFERENCES dentasys.practice(practice_id),
+    recall_id       bigint NOT NULL,
+    patient_id      bigint,
+    recall_type     text,
+    due_month       date NOT NULL CHECK (extract(day FROM due_month) = 1),
+    due_ym_raw      char(4) NOT NULL,
+    due_year_source text NOT NULL CHECK (due_year_source IN ('legacy_pivot', 'patient_dob')),
+    last_sent_on    date,
+    is_deleted      boolean NOT NULL,
+    PRIMARY KEY (practice_id, recall_id)
 );
 
 /*------------------------------------------------------------------------------
